@@ -1,4 +1,3 @@
-// src/utils/stats.ts
 import type { AssertionRule } from '../types/benchmark';
 
 export function computePercentile(sorted: number[], p: number): number {

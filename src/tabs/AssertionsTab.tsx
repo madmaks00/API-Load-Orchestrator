@@ -1,4 +1,3 @@
-// src/tabs/AssertionsTab.tsx
 import React from 'react';
 import { Icons } from '../components/Icons';
 import { ui } from '../styles';

@@ -2,6 +2,10 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+
+  /* 1. Стандарт для Firefox и современных браузеров */
+  scrollbar-width: thin;
+  scrollbar-color: #27272a transparent;
 }
 
 body, html, #root {
@@ -9,4 +13,44 @@ body, html, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+  background-color: #09090b; /* чтобы не мигало белым при загрузке */
+}
+
+/* 2. Стилизация скроллбара для Chrome, Edge, Safari, Opera (WebKit) */
+::-webkit-scrollbar {
+  width: 8px;              /* Ширина вертикального скролла */
+  height: 8px;             /* Высота горизонтального скролла */
+}
+
+/* Дорожка скролла (прозрачная, сливается с фоном #09090b) */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Сам ползунок */
+::-webkit-scrollbar-thumb {
+  background-color: #27272a; /* Ровно в цвет твоих бордеров из styles.ts */
+  border-radius: 4px;
+  border: 2px solid #09090b; /* Внутренний отступ за счет границы в цвет фона */
+  transition: background-color 0.2s ease;
+}
+
+/* При наведении курсора */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3f3f46; /* Чуть светлее */
+}
+
+/* При зажатии и перетаскивании ползунка */
+::-webkit-scrollbar-thumb:active {
+  background-color: #06b6d4; /* Неоновый циан в тон твоим метрикам */
+}
+
+/* Убираем уродливые стрелочки по краям Windows */
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Угол пересечения вертикального и горизонтального скролла */
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

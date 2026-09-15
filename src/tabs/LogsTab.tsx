@@ -1,4 +1,3 @@
-// src/tabs/LogsTab.tsx
 import React from 'react';
 import type { ExecutionLog } from '../types/benchmark';
 import { ui } from '../styles';

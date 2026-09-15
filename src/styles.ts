@@ -1,4 +1,3 @@
-// src/styles.ts
 import type React from 'react';
 
 export const ui: Record<string, React.CSSProperties> = {

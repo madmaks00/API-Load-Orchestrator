@@ -1,4 +1,3 @@
-// src/constants.ts
 import type { ServerNode, ScenarioConfiguration } from './types/benchmark';
 
 export const INITIAL_SERVERS: ServerNode[] = [
