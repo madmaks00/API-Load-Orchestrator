@@ -222,6 +222,7 @@ export const FleetTab: React.FC<FleetTabProps> = ({
                   <Icons.RefreshCw />
                 </button>
                 <button
+                className="delete-btn"
                   onClick={() => setServers(curr => curr.filter(s => s.id !== server.id))}
                   style={ui.iconBtn}
                 >

@@ -104,7 +104,7 @@ export const AssertionsTab: React.FC<AssertionsTabProps> = ({ engineSettings, se
               onChange={e => handleTargetValueChange(rule.id, e.target.value)}
               style={{ ...ui.formInput, width: '140px' }}
             />
-            <button onClick={() => handleDeleteRule(rule.id)} style={ui.iconBtn}>
+            <button className="delete-btn" onClick={() => handleDeleteRule(rule.id)} style={ui.iconBtn}>
               <Icons.Trash />
             </button>
           </div>

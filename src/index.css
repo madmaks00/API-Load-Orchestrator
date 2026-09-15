@@ -56,3 +56,14 @@ input[type="number"] {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+.delete-btn {
+  color: #71717a;
+  transition: all 0.15s ease;
+}
+
+.delete-btn:hover {
+  color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}

@@ -478,7 +478,6 @@ export const OrchestratorTab = ({
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <!-- 1. Пустой title, чтобы браузер не печатал название в колонтитуле -->
   <title></title>
   <style>
     /* 2. Обнуление полей страницы полностью скрывает about:blank и дату/заголовок */
@@ -510,7 +509,6 @@ export const OrchestratorTab = ({
     .section-title { font-size: 14px; font-weight: 700; color: #e4e4e7; margin-top: 24px; margin-bottom: 8px; }
 
     @media print { 
-      /* Возвращаем аккуратные отступы для контента на листе */
       body { 
         background: #fff; 
         color: #000; 
@@ -602,7 +600,6 @@ export const OrchestratorTab = ({
     </tbody>
   </table>
 
-  <!-- Обернули в .no-print: на странице кнопка есть, в готовом PDF ее не будет -->
   <div class="no-print" style="margin-top: 30px; text-align: right">
     <button onclick="window.print()" style="padding: 8px 18px; font-weight: 600; cursor: pointer; border-radius: 4px; border: 1px solid #3f3f46; background: #27272a; color: #fff;">
       Print to PDF
@@ -689,49 +686,173 @@ export const OrchestratorTab = ({
           )}
 
           {metrics.completed > 0 && (
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={handleSaveBaseline}
-                style={{
-                  ...ui.secondaryBtn,
-                  color: '#38bdf8',
-                  borderColor: '#0284c7'
-                }}
-                title="Save current run metrics as reference baseline"
-              >
-                ★ Baseline
-              </button>
-              <button
-                type="button"
-                onClick={exportHtmlReport}
-                style={{
-                  ...ui.secondaryBtn,
-                  color: '#10b981',
-                  borderColor: '#059669'
-                }}
-                title="Generate printable executive HTML/PDF report"
-              >
-                📄 Report
-              </button>
-              <button
-                type="button"
-                onClick={exportCsv}
-                style={ui.secondaryBtn}
-                title="Export traces as CSV"
-              >
-                📊 CSV
-              </button>
-              <button
-                type="button"
-                onClick={exportJson}
-                style={ui.secondaryBtn}
-                title="Export full benchmark telemetry as JSON"
-              >
-                📦 JSON
-              </button>
-            </div>
-          )}
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+    {/* Кнопка Baseline */}
+    <button
+      type="button"
+      onClick={handleSaveBaseline}
+      title="Save current metrics as performance baseline"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        height: '32px',
+        padding: '0 10px',
+        fontSize: '11px',
+        fontWeight: 500,
+        fontFamily: 'monospace',
+        color: '#38bdf8',
+        backgroundColor: '#0f172a',
+        border: '1px solid #1e293b',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease'
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.backgroundColor = '#1e293b';
+        e.currentTarget.style.borderColor = '#0284c7';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.backgroundColor = '#0f172a';
+        e.currentTarget.style.borderColor = '#1e293b';
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+      <span>Set Baseline</span>
+    </button>
+
+    <div style={{ width: '1px', height: '18px', backgroundColor: '#27272a' }} />
+
+    {/* Сегментированная группа экспорта: Report / CSV / JSON */}
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '2px',
+        height: '32px'
+      }}
+    >
+      {/* Report (HTML/PDF) */}
+      <button
+        type="button"
+        onClick={exportHtmlReport}
+        title="Generate printable Executive HTML / PDF report"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          height: '26px',
+          padding: '0 9px',
+          fontSize: '11px',
+          fontWeight: 500,
+          color: '#e4e4e7',
+          backgroundColor: 'transparent',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease'
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.backgroundColor = '#27272a';
+          e.currentTarget.style.color = '#10b981';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = '#e4e4e7';
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <span>Report</span>
+      </button>
+
+      <div style={{ width: '1px', height: '14px', backgroundColor: '#27272a' }} />
+
+      {/* CSV */}
+      <button
+        type="button"
+        onClick={exportCsv}
+        title="Export raw traces to CSV"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          height: '26px',
+          padding: '0 9px',
+          fontSize: '11px',
+          fontWeight: 500,
+          color: '#a1a1aa',
+          backgroundColor: 'transparent',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease'
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.backgroundColor = '#27272a';
+          e.currentTarget.style.color = '#f4f4f5';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = '#a1a1aa';
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" />
+        </svg>
+        <span>CSV</span>
+      </button>
+
+      <div style={{ width: '1px', height: '14px', backgroundColor: '#27272a' }} />
+
+      {/* JSON */}
+      <button
+        type="button"
+        onClick={exportJson}
+        title="Export benchmark metrics and config as JSON"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          height: '26px',
+          padding: '0 9px',
+          fontSize: '11px',
+          fontWeight: 500,
+          color: '#a1a1aa',
+          backgroundColor: 'transparent',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease'
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.backgroundColor = '#27272a';
+          e.currentTarget.style.color = '#f4f4f5';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = '#a1a1aa';
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="16 18 22 12 16 6" />
+          <polyline points="8 6 2 12 8 18" />
+        </svg>
+        <span>JSON</span>
+      </button>
+    </div>
+  </div>
+)}
         </div>
       </div>
 
@@ -750,7 +871,7 @@ export const OrchestratorTab = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8' }}>
-                ★ Baseline Diff & Performance Regression Watch
+                Baseline Diff & Performance Regression Watch
               </span>
               <span style={{ fontSize: '11px', color: '#64748b' }}>
                 Reference saved at {baseline.savedAt} ({baseline.metrics.completed} calls)
