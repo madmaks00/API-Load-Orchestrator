@@ -182,7 +182,8 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginTop: '12px' }}>
+      {/* Сетка переведена на 8 колонок */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '10px', marginTop: '12px' }}>
         <div style={ui.miniMetricBox}>
           <div style={ui.miniMetricLabel}>Process CPU</div>
           <div style={{
@@ -197,15 +198,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           }}>
             {current?.cpuUsagePercent !== undefined ? `${current.cpuUsagePercent}%` : '--'}
           </div>
-          <div style={ui.miniMetricSub}>
-            {current?.cpuUsagePercent === undefined
-              ? 'Нагрузка на ядра'
-              : current.cpuUsagePercent > 80
-              ? '⚠️ Троттлинг ЦП'
-              : current.cpuUsagePercent > 50
-              ? 'Высокая нагрузка'
-              : 'Норма'}
-          </div>
         </div>
 
         <div style={ui.miniMetricBox}>
@@ -213,7 +205,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <div style={{ ...ui.miniMetricVal, color: '#a855f7' }}>
             {current ? `${current.workingSetMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
-          <div style={ui.miniMetricSub}>Память процесса</div>
         </div>
 
         <div style={ui.miniMetricBox}>
@@ -221,14 +212,14 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <div style={{ ...ui.miniMetricVal, color: '#06b6d4' }}>
             {current ? `${current.allocatedMemoryMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
-          <div style={ui.miniMetricSub}>Общая куча .NET</div>
         </div>
 
+        {/* 1. Карточка LOH Heap */}
         <div style={{
           ...ui.miniMetricBox,
           borderColor: current?.lohSizeMb !== undefined && current.lohSizeMb > 30 ? '#f59e0b' : '#1f1f23'
         }}>
-          <div style={ui.miniMetricLabel}>LOH / POH Heap</div>
+          <div style={ui.miniMetricLabel}>LOH Heap</div>
           <div style={{
             ...ui.miniMetricVal,
             color: current?.lohSizeMb === undefined
@@ -239,8 +230,13 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           }}>
             {current?.lohSizeMb !== undefined ? `${current.lohSizeMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
-          <div style={ui.miniMetricSub}>
-            {current?.pohSizeMb !== undefined ? `POH: ${current.pohSizeMb} MB` : 'Объекты >= 85 KB'}
+        </div>
+
+        {/* 2. Отдельная карточка POH Heap */}
+        <div style={ui.miniMetricBox}>
+          <div style={ui.miniMetricLabel}>POH Heap</div>
+          <div style={{ ...ui.miniMetricVal, color: '#38bdf8' }}>
+            {current?.pohSizeMb !== undefined ? `${current.pohSizeMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
         </div>
 
@@ -249,7 +245,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <div style={{ ...ui.miniMetricVal, color: '#38bdf8' }}>
             {current ? current.threadCount : '--'}
           </div>
-          <div style={ui.miniMetricSub}>Активные потоки</div>
         </div>
 
         <div style={{
@@ -269,15 +264,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           }}>
             {queueCount !== undefined ? queueCount : '--'}
           </div>
-          <div style={ui.miniMetricSub}>
-            {queueCount === undefined
-              ? 'Очередь задач'
-              : queueCount > 20
-              ? '⚠️ Голодание пула!'
-              : queueCount > 0
-              ? 'Задачи в ожидании'
-              : 'Очередь чиста'}
-          </div>
         </div>
 
         <div style={ui.miniMetricBox}>
@@ -285,7 +271,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <div style={{ ...ui.miniMetricVal, color: '#10b981' }}>
             {current ? `${current.gen0}/${current.gen1}/${current.gen2}` : '--'}
           </div>
-          <div style={ui.miniMetricSub}>Сборки поколений</div>
         </div>
       </div>
 
@@ -323,7 +308,7 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           </svg>
         ) : (
           <div style={ui.emptyGraph}>
-            {isConnected ? 'Накопление потока телеметрии памяти...' : 'Подключись к серверу с активным эндпоинтом /api/system-metrics'}
+            {isConnected ? 'Accumulating memory telemetry stream...' : 'Connect to server with active /api/system-metrics endpoint'}
           </div>
         )}
       </div>
