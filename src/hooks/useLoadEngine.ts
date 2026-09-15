@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { computePercentile, computeStdDev, evaluateAssertions } from '../utils/stats';
+import { interpolateTemplate } from '../utils/template';
 import type {
   ScenarioConfiguration,
   LoadEngineSettings,
@@ -189,6 +190,9 @@ export function useLoadEngine(
           await new Promise(r => setTimeout(r, 1000 / engineSettings.rateLimitRps));
         }
 
+        const context = { vuId, reqId };
+        const evaluatedUrl = interpolateTemplate(scenario.targetUrl, context);
+
         const virtualIp = `192.168.${(vuId % 20) + 1}.${(reqId % 250) + 1}`;
 
         const headers: Record<string, string> = {
@@ -198,7 +202,7 @@ export function useLoadEngine(
         };
 
         if (scenario.authType === 'bearer' && scenario.authToken) {
-          headers['Authorization'] = `Bearer ${scenario.authToken}`;
+          headers['Authorization'] = `Bearer ${interpolateTemplate(scenario.authToken, context)}`;
         }
         if (scenario.method !== 'GET' && scenario.method !== 'HEAD' && scenario.bodyContent) {
           headers['Content-Type'] = 'application/json';
@@ -210,15 +214,17 @@ export function useLoadEngine(
           signal: controller.signal
         };
 
+        let evaluatedBody: string | undefined = undefined;
         if (scenario.method !== 'GET' && scenario.method !== 'HEAD' && scenario.bodyContent) {
-          reqInit.body = scenario.bodyContent;
+          evaluatedBody = interpolateTemplate(scenario.bodyContent, context);
+          reqInit.body = evaluatedBody;
         }
 
         const tStart = performance.now();
         let trace: RequestTrace;
 
         try {
-          const res = await fetch(scenario.targetUrl, reqInit);
+          const res = await fetch(evaluatedUrl, reqInit);
           const tHeaders = performance.now();
           const bodyText = await res.text();
           const tEnd = performance.now();
@@ -239,7 +245,7 @@ export function useLoadEngine(
             id: reqId,
             timestamp: Date.now(),
             method: scenario.method,
-            url: scenario.targetUrl,
+            url: evaluatedUrl,
             durationMs: duration,
             statusCode: res.status,
             statusText: res.statusText || 'OK',
@@ -247,7 +253,7 @@ export function useLoadEngine(
             isError: !res.ok || !pass,
             assertionPassed: pass,
             requestHeaders: { ...headers },
-            requestBody: scenario.method !== 'GET' && scenario.method !== 'HEAD' ? scenario.bodyContent : undefined,
+            requestBody: evaluatedBody,
             responseBody: bodyText,
             responseHeaders: respHeaders,
             timing: {
@@ -266,7 +272,7 @@ export function useLoadEngine(
             id: reqId,
             timestamp: Date.now(),
             method: scenario.method,
-            url: scenario.targetUrl,
+            url: evaluatedUrl,
             durationMs: duration,
             statusCode: 0,
             statusText: 'ERR_FAILED',
@@ -274,7 +280,7 @@ export function useLoadEngine(
             isError: true,
             assertionPassed: false,
             requestHeaders: { ...headers },
-            requestBody: scenario.method !== 'GET' && scenario.method !== 'HEAD' ? scenario.bodyContent : undefined,
+            requestBody: evaluatedBody,
             responseBody: errorMessage,
             responseHeaders: {},
             timing: {

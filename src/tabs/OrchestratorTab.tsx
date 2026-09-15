@@ -181,7 +181,7 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginTop: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginTop: '12px' }}>
         <div style={ui.miniMetricBox}>
           <div style={ui.miniMetricLabel}>Process CPU</div>
           <div style={{
@@ -200,19 +200,19 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
             {current?.cpuUsagePercent === undefined
               ? 'Нагрузка на ядра'
               : current.cpuUsagePercent > 80
-              ? '⚠️ Троттлинг / Пик ЦП'
+              ? '⚠️ Троттлинг ЦП'
               : current.cpuUsagePercent > 50
               ? 'Высокая нагрузка'
-              : 'Нормальная загрузка'}
+              : 'Норма'}
           </div>
         </div>
 
         <div style={ui.miniMetricBox}>
-          <div style={ui.miniMetricLabel}>Working Set (OS RAM)</div>
+          <div style={ui.miniMetricLabel}>Working Set (OS)</div>
           <div style={{ ...ui.miniMetricVal, color: '#a855f7' }}>
             {current ? `${current.workingSetMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
-          <div style={ui.miniMetricSub}>Память процесса (ОС)</div>
+          <div style={ui.miniMetricSub}>Память процесса</div>
         </div>
 
         <div style={ui.miniMetricBox}>
@@ -220,22 +220,42 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <div style={{ ...ui.miniMetricVal, color: '#06b6d4' }}>
             {current ? `${current.allocatedMemoryMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
-          <div style={ui.miniMetricSub}>Выделено в куче C#</div>
+          <div style={ui.miniMetricSub}>Общая куча .NET</div>
+        </div>
+
+        <div style={{
+          ...ui.miniMetricBox,
+          borderColor: current?.lohSizeMb !== undefined && current.lohSizeMb > 30 ? '#f59e0b' : '#1f1f23'
+        }}>
+          <div style={ui.miniMetricLabel}>LOH / POH Heap</div>
+          <div style={{
+            ...ui.miniMetricVal,
+            color: current?.lohSizeMb === undefined
+              ? '#71717a'
+              : current.lohSizeMb > 30
+              ? '#f59e0b'
+              : '#38bdf8'
+          }}>
+            {current?.lohSizeMb !== undefined ? `${current.lohSizeMb}` : '--'} <span style={ui.miniUnit}>MB</span>
+          </div>
+          <div style={ui.miniMetricSub}>
+            {current?.pohSizeMb !== undefined ? `POH: ${current.pohSizeMb} MB` : 'Объекты >= 85 KB'}
+          </div>
         </div>
 
         <div style={ui.miniMetricBox}>
-          <div style={ui.miniMetricLabel}>ThreadPool Threads</div>
+          <div style={ui.miniMetricLabel}>ThreadPool</div>
           <div style={{ ...ui.miniMetricVal, color: '#38bdf8' }}>
             {current ? current.threadCount : '--'}
           </div>
-          <div style={ui.miniMetricSub}>Активные потоки Kestrel</div>
+          <div style={ui.miniMetricSub}>Активные потоки</div>
         </div>
 
         <div style={{
           ...ui.miniMetricBox,
           borderColor: isStarving ? '#ef4444' : '#1f1f23'
         }}>
-          <div style={ui.miniMetricLabel}>ThreadPool Queue</div>
+          <div style={ui.miniMetricLabel}>Queue (Pending)</div>
           <div style={{
             ...ui.miniMetricVal,
             color: queueCount === undefined
@@ -255,16 +275,16 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
               ? '⚠️ Голодание пула!'
               : queueCount > 0
               ? 'Задачи в ожидании'
-              : 'Очередь свободна'}
+              : 'Очередь чиста'}
           </div>
         </div>
 
         <div style={ui.miniMetricBox}>
-          <div style={ui.miniMetricLabel}>GC Collections (0/1/2)</div>
+          <div style={ui.miniMetricLabel}>GC (0/1/2)</div>
           <div style={{ ...ui.miniMetricVal, color: '#10b981' }}>
             {current ? `${current.gen0}/${current.gen1}/${current.gen2}` : '--'}
           </div>
-          <div style={ui.miniMetricSub}>Сборки мусора поколений</div>
+          <div style={ui.miniMetricSub}>Сборки поколений</div>
         </div>
       </div>
 
@@ -811,13 +831,41 @@ export const OrchestratorTab = ({
 
           {scenario.method !== 'GET' && (
             <div style={{ marginTop: '12px' }}>
-              <label style={ui.inputLabel}>JSON Request Body</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...ui.inputLabel, margin: 0 }}>JSON Request Body</label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {['{{$guid}}', '{{$timestamp}}', '{{$randomInt(1, 1000)}}', '{{$userId}}'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setScenario(prev => ({
+                          ...prev,
+                          bodyContent: prev.bodyContent ? `${prev.bodyContent} ${tag}` : tag
+                        }));
+                      }}
+                      style={{
+                        fontSize: '9px',
+                        fontFamily: 'monospace',
+                        backgroundColor: '#18181b',
+                        color: '#06b6d4',
+                        border: '1px solid #27272a',
+                        borderRadius: '4px',
+                        padding: '2px 5px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      +{tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <textarea
                 rows={5}
                 value={scenario.bodyContent}
                 onChange={e => setScenario(prev => ({ ...prev, bodyContent: e.target.value }))}
                 style={ui.codeTextArea}
-                placeholder='{ "key": "value" }'
+                placeholder='{ "id": "{{$guid}}", "userId": {{$userId}}, "num": {{$randomInt(1, 1000)}} }'
               />
             </div>
           )}
