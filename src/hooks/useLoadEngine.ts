@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { computePercentile, computeStdDev, evaluateAssertions } from '../types/stats';
+import { computePercentile, computeStdDev, evaluateAssertions } from '../utils/stats';
 import type {
   ScenarioConfiguration,
   LoadEngineSettings,
@@ -9,12 +9,50 @@ import type {
   ExecutionLog
 } from '../types/benchmark';
 
+// Функция расчета желаемого количества VU на конкретной секунде теста
+function calculateDesiredVUs(
+  elapsedSeconds: number,
+  settings: LoadEngineSettings
+): { desiredVUs: number; isCompleted: boolean } {
+  if (settings.profile === 'constant') {
+    return { desiredVUs: settings.concurrency, isCompleted: false };
+  }
+
+  if (settings.profile === 'ramp_up') {
+    const stages = settings.stages || [];
+    if (stages.length === 0) {
+      return { desiredVUs: settings.concurrency, isCompleted: false };
+    }
+
+    let accumulatedTime = 0;
+    let prevTarget = 0;
+
+    for (const stage of stages) {
+      const stageEnd = accumulatedTime + stage.durationSeconds;
+      if (elapsedSeconds <= stageEnd) {
+        const stageElapsed = elapsedSeconds - accumulatedTime;
+        const progress = stage.durationSeconds > 0 ? stageElapsed / stage.durationSeconds : 1;
+        const currentVUs = Math.round(prevTarget + progress * (stage.targetVUs - prevTarget));
+        return { desiredVUs: Math.max(currentVUs, 0), isCompleted: false };
+      }
+      accumulatedTime = stageEnd;
+      prevTarget = stage.targetVUs;
+    }
+
+    // Если все этапы пройдены — тест завершен
+    return { desiredVUs: 0, isCompleted: true };
+  }
+
+  return { desiredVUs: settings.concurrency, isCompleted: false };
+}
+
 export function useLoadEngine(
   scenario: ScenarioConfiguration,
   engineSettings: LoadEngineSettings,
   addLog: (level: ExecutionLog['level'], message: string) => void
 ) {
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [currentActiveVUs, setCurrentActiveVUs] = useState<number>(0);
   const [traces, setTraces] = useState<RequestTrace[]>([]);
   const [telemetryBuckets, setTelemetryBuckets] = useState<TelemetryBucket[]>([]);
 
@@ -42,15 +80,39 @@ export function useLoadEngine(
     abortControllerRef.current = controller;
     startTimeRef.current = performance.now();
 
-    addLog('info', `Benchmark dispatched: ${scenario.targetUrl} [${engineSettings.concurrency} VUs]`);
+    // Определяем максимальный потолок воркеров
+    const maxVUs =
+      engineSettings.profile === 'ramp_up'
+        ? Math.max(...(engineSettings.stages || []).map(s => s.targetVUs), 1)
+        : engineSettings.concurrency;
+
+    const totalRampTime =
+      engineSettings.profile === 'ramp_up'
+        ? (engineSettings.stages || []).reduce((acc, s) => acc + s.durationSeconds, 0)
+        : 0;
+
+    addLog(
+      'info',
+      `Benchmark started: ${scenario.targetUrl} [Profile: ${engineSettings.profile.toUpperCase()}, Max VUs: ${maxVUs}]`
+    );
 
     let sentCounter = 0;
     const maxRequests = engineSettings.totalRequests > 0 ? engineSettings.totalRequests : Infinity;
-    const maxDurationMs = engineSettings.durationSeconds > 0 ? engineSettings.durationSeconds * 1000 : Infinity;
+    const maxDurationMs =
+      engineSettings.profile === 'ramp_up' && totalRampTime > 0
+        ? totalRampTime * 1000
+        : engineSettings.durationSeconds > 0
+        ? engineSettings.durationSeconds * 1000
+        : Infinity;
 
     const sampleRateMs = 200;
     let lastDone = 0;
+
     const bucketInterval = window.setInterval(() => {
+      const elapsedSec = (performance.now() - startTimeRef.current) / 1000;
+      const { desiredVUs } = calculateDesiredVUs(elapsedSec, engineSettings);
+      setCurrentActiveVUs(desiredVUs);
+
       const currentDone = liveTracesRef.current.length;
       const delta = currentDone - lastDone;
       lastDone = currentDone;
@@ -65,7 +127,8 @@ export function useLoadEngine(
           timestamp: Date.now(),
           rps: currentRps,
           avgLatency: Math.round(avgLat),
-          errorCount: recent.filter(i => i.isError).length
+          errorCount: recent.filter(i => i.isError).length,
+          activeVUs: desiredVUs
         }
       ]);
     }, sampleRateMs);
@@ -73,8 +136,20 @@ export function useLoadEngine(
 
     const runWorker = async (vuId: number) => {
       while (!controller.signal.aborted) {
-        const elapsed = performance.now() - startTimeRef.current;
-        if (elapsed >= maxDurationMs || sentCounter >= maxRequests) break;
+        const elapsedSec = (performance.now() - startTimeRef.current) / 1000;
+        const elapsedMs = elapsedSec * 1000;
+
+        // Проверяем лимиты времени и количества запросов
+        if (elapsedMs >= maxDurationMs || sentCounter >= maxRequests) break;
+
+        const { desiredVUs, isCompleted } = calculateDesiredVUs(elapsedSec, engineSettings);
+        if (isCompleted) break;
+
+        // Если текущему воркеру не выделен слот (разгон еще не дошел до него) — ожидаем
+        if (vuId >= desiredVUs) {
+          await new Promise(r => setTimeout(r, 100));
+          continue;
+        }
 
         const reqId = ++sentCounter;
 
@@ -155,10 +230,11 @@ export function useLoadEngine(
       }
     };
 
-    const workers = Array.from({ length: engineSettings.concurrency }, (_, i) => runWorker(i));
+    const workers = Array.from({ length: maxVUs }, (_, i) => runWorker(i));
     await Promise.all(workers);
 
     if (bucketTimerRef.current) clearInterval(bucketTimerRef.current);
+    setCurrentActiveVUs(0);
     setTraces([...liveTracesRef.current]);
     setIsRunning(false);
     abortControllerRef.current = null;
@@ -169,6 +245,7 @@ export function useLoadEngine(
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       if (bucketTimerRef.current) clearInterval(bucketTimerRef.current);
+      setCurrentActiveVUs(0);
       setIsRunning(false);
       addLog('warn', 'Execution halted by operator.');
     }
@@ -180,7 +257,7 @@ export function useLoadEngine(
       return {
         totalSent: 0, completed: 0, successCount: 0, status2xx: 0, status3xx: 0,
         status4xx: 0, status429: 0, status5xx: 0, networkErrors: 0, totalBytes: 0,
-        throughputKbps: 0, avgBytes: 0, currentRps: 0, elapsedSeconds: 0,
+        throughputKbps: 0, avgBytes: 0, currentRps: 0, activeVUs: currentActiveVUs, elapsedSeconds: 0,
         avgDurationMs: 0, stdDev: 0, minDurationMs: 0, maxDurationMs: 0,
         p50: 0, p75: 0, p90: 0, p95: 0, p99: 0, p999: 0, errorRatePercent: 0
       };
@@ -219,6 +296,7 @@ export function useLoadEngine(
       throughputKbps: Math.round(bytes / (elapsed * 1024)),
       avgBytes: Math.round(bytes / total),
       currentRps: Math.round(total / elapsed),
+      activeVUs: currentActiveVUs,
       elapsedSeconds: Number(elapsed.toFixed(1)),
       avgDurationMs: avgDuration,
       stdDev: computeStdDev(durations, avgDuration),
@@ -232,7 +310,7 @@ export function useLoadEngine(
       p999: computePercentile(durations, 99.9),
       errorRatePercent: Number(((failedCount / total) * 100).toFixed(1))
     };
-  }, [traces]);
+  }, [traces, currentActiveVUs]);
 
   return {
     isRunning,

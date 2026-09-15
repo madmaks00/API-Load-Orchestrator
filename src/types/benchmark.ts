@@ -1,7 +1,11 @@
-// src/types/benchmark.ts
-
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 export type LoadProfileType = 'constant' | 'ramp_up' | 'spike';
+
+export interface RampStage {
+  id: string;
+  durationSeconds: number;
+  targetVUs: number;
+}
 
 export interface KeyValuePair {
   id: string;
@@ -64,6 +68,7 @@ export interface LoadEngineSettings {
   durationSeconds: number;
   rateLimitRps: number;
   assertions: AssertionRule[];
+  stages: RampStage[]; // <-- Добавили этапы для Ramp-Up
 }
 
 export interface RequestTrace {
@@ -84,6 +89,7 @@ export interface TelemetryBucket {
   rps: number;
   avgLatency: number;
   errorCount: number;
+  activeVUs: number; // <-- Активные воркеры в текущую секунду
 }
 
 export interface AggregatedMetrics {
@@ -100,6 +106,7 @@ export interface AggregatedMetrics {
   throughputKbps: number;
   avgBytes: number;
   currentRps: number;
+  activeVUs: number; // <-- Актуальное число VUs
   elapsedSeconds: number;
   avgDurationMs: number;
   stdDev: number;

@@ -1,5 +1,5 @@
 // src/tabs/OrchestratorTab.tsx
-import React, { useMemo } from 'react';
+import { useMemo, type Dispatch, type SetStateAction } from 'react';
 import { Icons } from '../components/Icons';
 import { ui } from '../styles';
 import type {
@@ -9,13 +9,19 @@ import type {
   RequestTrace,
   TelemetryBucket,
   AggregatedMetrics,
-  ServerProcessTelemetry
+  ServerProcessTelemetry,
+  RampStage
 } from '../types/benchmark';
 
 // ============================================================================
 // Графики нагрузки и латентности (SVG)
 // ============================================================================
-const TelemetryGraphs: React.FC<{ traces: RequestTrace[]; buckets: TelemetryBucket[] }> = ({ traces, buckets }) => {
+interface TelemetryGraphsProps {
+  traces: RequestTrace[];
+  buckets: TelemetryBucket[];
+}
+
+const TelemetryGraphs = ({ traces, buckets }: TelemetryGraphsProps) => {
   const chartHeight = 110;
   const chartWidth = 560;
 
@@ -127,11 +133,13 @@ const TelemetryGraphs: React.FC<{ traces: RequestTrace[]; buckets: TelemetryBuck
 // ============================================================================
 // График телеметрии C# Kestrel (APM)
 // ============================================================================
-const ServerApmWidget: React.FC<{
+interface ServerApmWidgetProps {
   current: ServerProcessTelemetry | null;
   history: ServerProcessTelemetry[];
   isConnected: boolean;
-}> = ({ current, history, isConnected }) => {
+}
+
+const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps) => {
   const chartHeight = 84;
   const chartWidth = 480;
 
@@ -247,9 +255,9 @@ const ServerApmWidget: React.FC<{
 // ============================================================================
 interface OrchestratorTabProps {
   scenario: ScenarioConfiguration;
-  setScenario: React.Dispatch<React.SetStateAction<ScenarioConfiguration>>;
+  setScenario: Dispatch<SetStateAction<ScenarioConfiguration>>;
   engineSettings: LoadEngineSettings;
-  setEngineSettings: React.Dispatch<React.SetStateAction<LoadEngineSettings>>;
+  setEngineSettings: Dispatch<SetStateAction<LoadEngineSettings>>;
   metrics: AggregatedMetrics;
   isRunning: boolean;
   startLoadEngine: () => Promise<void>;
@@ -261,7 +269,7 @@ interface OrchestratorTabProps {
   isApmConnected: boolean;
 }
 
-export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
+export const OrchestratorTab = ({
   scenario,
   setScenario,
   engineSettings,
@@ -275,14 +283,43 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
   apmTelemetry,
   apmHistory,
   isApmConnected
-}) => {
+}: OrchestratorTabProps) => {
+  const stages = engineSettings.stages || [];
+  const totalRampTime = stages.reduce((sum, s) => sum + s.durationSeconds, 0);
+  const maxRampVUs = Math.max(...stages.map(s => s.targetVUs), 0);
+
+  const handleAddStage = () => {
+    const nextStages: RampStage[] = [
+      ...stages,
+      {
+        id: `stg-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+        durationSeconds: 15,
+        targetVUs: stages.length > 0 ? stages[stages.length - 1].targetVUs : 20
+      }
+    ];
+    setEngineSettings(prev => ({ ...prev, stages: nextStages }));
+  };
+
+  const handleUpdateStage = (id: string, field: 'durationSeconds' | 'targetVUs', value: number) => {
+    const nextStages = stages.map(s =>
+      s.id === id ? { ...s, [field]: value } : s
+    );
+    setEngineSettings(prev => ({ ...prev, stages: nextStages }));
+  };
+
+  const handleDeleteStage = (id: string) => {
+    const nextStages = stages.filter(s => s.id !== id);
+    setEngineSettings(prev => ({ ...prev, stages: nextStages }));
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* СТРОКА ВВОДА URL И УПРАВЛЕНИЯ ЗАПУСКОМ */}
       <div style={ui.card}>
         <div style={ui.urlComposerRow}>
           <select
             value={scenario.method}
-            onChange={e => setScenario({ ...scenario, method: e.target.value as HttpMethod })}
+            onChange={e => setScenario(prev => ({ ...prev, method: e.target.value as HttpMethod }))}
             style={ui.methodSelect}
           >
             <option value="GET">GET</option>
@@ -294,7 +331,7 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
           <input
             type="text"
             value={scenario.targetUrl}
-            onChange={e => setScenario({ ...scenario, targetUrl: e.target.value })}
+            onChange={e => setScenario(prev => ({ ...prev, targetUrl: e.target.value }))}
             style={ui.urlInput}
           />
 
@@ -320,7 +357,11 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
             <span style={{ ...ui.kpiNumber, color: '#06b6d4' }}>{metrics.currentRps}</span>
             <span style={ui.kpiUnit}>req/s</span>
           </div>
-          <span style={ui.kpiFooter}>Across {engineSettings.concurrency} concurrent VUs</span>
+          <span style={ui.kpiFooter}>
+            {engineSettings.profile === 'ramp_up'
+              ? `Active: ${metrics.activeVUs ?? 0} VUs (Peak: ${maxRampVUs} VUs)`
+              : `Across ${engineSettings.concurrency} concurrent VUs`}
+          </span>
         </div>
 
         <div style={ui.kpiCard}>
@@ -403,33 +444,116 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
       {/* ПАРАМЕТРЫ ДВИЖКА НАГРУЗКИ */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px' }}>
         <div style={ui.card}>
-          <div style={ui.cardTitle}>Engine Concurrency & Strategy</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={ui.cardTitle}>Engine Concurrency & Strategy</div>
+            {engineSettings.profile === 'ramp_up' && (
+              <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: 600 }}>
+                Total: {totalRampTime}s | Peak: {maxRampVUs} VUs
+              </span>
+            )}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '14px' }}>
             <div>
               <label style={ui.inputLabel}>Traffic Pattern</label>
               <select
                 value={engineSettings.profile}
-                onChange={e => setEngineSettings({ ...engineSettings, profile: e.target.value as any })}
+                onChange={e => setEngineSettings(prev => ({ ...prev, profile: e.target.value as any }))}
                 style={ui.formSelect}
               >
                 <option value="constant">Constant Virtual Users</option>
-                <option value="ramp_up">Linear Ramp-Up</option>
+                <option value="ramp_up">Linear Ramp-Up (Stages)</option>
                 <option value="spike">Spike Surge</option>
               </select>
             </div>
 
-            <div>
-              <label style={ui.inputLabel}>Concurrent Workers (VUs): {engineSettings.concurrency}</label>
-              <input
-                type="range"
-                min="1"
-                max="100"
-                value={engineSettings.concurrency}
-                onChange={e => setEngineSettings({ ...engineSettings, concurrency: Number(e.target.value) })}
-                style={{ width: '100%', accentColor: '#06b6d4', marginTop: '6px' }}
-              />
-            </div>
+            {engineSettings.profile !== 'ramp_up' ? (
+              <div>
+                <label style={ui.inputLabel}>Concurrent Workers (VUs): {engineSettings.concurrency}</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={engineSettings.concurrency}
+                  onChange={e => setEngineSettings(prev => ({ ...prev, concurrency: Number(e.target.value) }))}
+                  style={{ width: '100%', accentColor: '#06b6d4', marginTop: '6px' }}
+                />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button onClick={handleAddStage} style={{ ...ui.secondaryBtn, width: '100%', justifyContent: 'center' }}>
+                  <Icons.Plus />
+                  <span>Add Ramp Stage</span>
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Редактор стадий разгона для Ramp-Up */}
+          {engineSettings.profile === 'ramp_up' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              marginTop: '14px',
+              padding: '12px',
+              backgroundColor: '#09090b',
+              borderRadius: '6px',
+              border: '1px solid #1f1f23'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '10px', color: '#71717a', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Target Stages Progression (k6 Style)
+                </span>
+                <span style={{ fontSize: '10px', color: '#52525b' }}>
+                  {stages.length} {stages.length === 1 ? 'stage' : 'stages'} configured
+                </span>
+              </div>
+
+              {stages.length === 0 ? (
+                <div style={{ fontSize: '11px', color: '#71717a', padding: '8px 0', textAlign: 'center' }}>
+                  No stages defined. Click &quot;Add Ramp Stage&quot; to configure.
+                </div>
+              ) : (
+                stages.map((stage, idx) => (
+                  <div key={stage.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', color: '#71717a', width: '35px', fontFamily: 'monospace' }}>
+                      #{idx + 1}
+                    </span>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        value={stage.durationSeconds}
+                        onChange={e => handleUpdateStage(stage.id, 'durationSeconds', Math.max(Number(e.target.value), 1))}
+                        style={{ ...ui.formInput, width: '70px', textAlign: 'center' }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#a1a1aa' }}>sec</span>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#a1a1aa' }}>→ Target:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="200"
+                        value={stage.targetVUs}
+                        onChange={e => handleUpdateStage(stage.id, 'targetVUs', Math.max(Number(e.target.value), 0))}
+                        style={{ ...ui.formInput, width: '70px', textAlign: 'center' }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#a1a1aa' }}>VUs</span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteStage(stage.id)}
+                      style={{ ...ui.iconBtn, color: '#f43f5e' }}
+                      title="Remove stage"
+                    >
+                      <Icons.Trash />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '14px' }}>
             <div>
@@ -437,7 +561,7 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
               <input
                 type="number"
                 value={engineSettings.totalRequests}
-                onChange={e => setEngineSettings({ ...engineSettings, totalRequests: Number(e.target.value) })}
+                onChange={e => setEngineSettings(prev => ({ ...prev, totalRequests: Number(e.target.value) }))}
                 style={ui.formInput}
               />
             </div>
@@ -446,9 +570,14 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
               <label style={ui.inputLabel}>Duration (Sec, 0=None)</label>
               <input
                 type="number"
-                value={engineSettings.durationSeconds}
-                onChange={e => setEngineSettings({ ...engineSettings, durationSeconds: Number(e.target.value) })}
-                style={ui.formInput}
+                disabled={engineSettings.profile === 'ramp_up'}
+                value={engineSettings.profile === 'ramp_up' ? totalRampTime : engineSettings.durationSeconds}
+                onChange={e => setEngineSettings(prev => ({ ...prev, durationSeconds: Number(e.target.value) }))}
+                style={{
+                  ...ui.formInput,
+                  opacity: engineSettings.profile === 'ramp_up' ? 0.6 : 1,
+                  cursor: engineSettings.profile === 'ramp_up' ? 'not-allowed' : 'text'
+                }}
               />
             </div>
 
@@ -457,7 +586,7 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
               <input
                 type="number"
                 value={engineSettings.rateLimitRps}
-                onChange={e => setEngineSettings({ ...engineSettings, rateLimitRps: Number(e.target.value) })}
+                onChange={e => setEngineSettings(prev => ({ ...prev, rateLimitRps: Number(e.target.value) }))}
                 style={ui.formInput}
               />
             </div>
@@ -470,7 +599,7 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
             {(['none', 'bearer'] as const).map(mode => (
               <button
                 key={mode}
-                onClick={() => setScenario({ ...scenario, authType: mode })}
+                onClick={() => setScenario(prev => ({ ...prev, authType: mode }))}
                 style={{
                   ...ui.segmentBtn,
                   backgroundColor: scenario.authType === mode ? '#27272a' : 'transparent',
@@ -488,7 +617,7 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
               <input
                 type="text"
                 value={scenario.authToken || ''}
-                onChange={e => setScenario({ ...scenario, authToken: e.target.value })}
+                onChange={e => setScenario(prev => ({ ...prev, authToken: e.target.value }))}
                 style={ui.formInput}
                 placeholder="JWT Token"
               />
@@ -501,7 +630,7 @@ export const OrchestratorTab: React.FC<OrchestratorTabProps> = ({
               <textarea
                 rows={5}
                 value={scenario.bodyContent}
-                onChange={e => setScenario({ ...scenario, bodyContent: e.target.value })}
+                onChange={e => setScenario(prev => ({ ...prev, bodyContent: e.target.value }))}
                 style={ui.codeTextArea}
                 placeholder='{ "key": "value" }'
               />

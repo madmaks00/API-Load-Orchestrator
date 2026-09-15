@@ -27,6 +27,11 @@ export default function App() {
     assertions: [
       { id: 'a1', field: 'status', operator: 'lt', targetValue: '400', enabled: true },
       { id: 'a2', field: 'duration', operator: 'lt', targetValue: '500', enabled: true }
+    ],
+    stages: [
+      { id: 's1', durationSeconds: 15, targetVUs: 20 },
+      { id: 's2', durationSeconds: 30, targetVUs: 20 },
+      { id: 's3', durationSeconds: 10, targetVUs: 0 }
     ]
   });
 
