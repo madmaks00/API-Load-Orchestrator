@@ -59,6 +59,29 @@ export interface ServerProcessTelemetry {
   timestamp: string;
 }
 
+export interface PerformanceBaseline {
+  id: string;
+  savedAt: string;
+  scenarioName: string;
+  targetUrl: string;
+  metrics: {
+    currentRps: number;
+    p50: number;
+    p90: number;
+    p99: number;
+    avgDurationMs: number;
+    errorRatePercent: number;
+    totalBytes: number;
+    completed: number;
+  };
+  apm?: {
+    workingSetMb?: number;
+    allocatedMemoryMb?: number;
+    threadCount?: number;
+    cpuUsagePercent?: number;
+  };
+}
+
 export interface ScenarioConfiguration {
   id: string;
   name: string;

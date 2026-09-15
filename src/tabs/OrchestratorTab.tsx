@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch, type SetStateAction } from 'react';
+import { useState, useMemo, type Dispatch, type SetStateAction } from 'react';
 import { Icons } from '../components/Icons';
 import { ui } from '../styles';
 import type {
@@ -10,7 +10,8 @@ import type {
   AggregatedMetrics,
   ServerProcessTelemetry,
   RampStage,
-  SpikeProfileSettings
+  SpikeProfileSettings,
+  PerformanceBaseline
 } from '../types/benchmark';
 
 interface TelemetryGraphsProps {
@@ -366,6 +367,15 @@ export const OrchestratorTab = ({
   apmHistory,
   isApmConnected
 }: OrchestratorTabProps) => {
+  const [baseline, setBaseline] = useState<PerformanceBaseline | null>(() => {
+    try {
+      const stored = localStorage.getItem('benchmark_baseline');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const stages = engineSettings.stages || [];
   const totalRampTime = stages.reduce((sum, s) => sum + s.durationSeconds, 0);
   const maxRampVUs = Math.max(...stages.map(s => s.targetVUs), 0);
@@ -378,6 +388,61 @@ export const OrchestratorTab = ({
     postSpikeSeconds: 15
   };
   const totalSpikeTime = spike.preSpikeSeconds + spike.spikeDurationSeconds + spike.postSpikeSeconds;
+
+  const handleSaveBaseline = () => {
+    const created: PerformanceBaseline = {
+      id: `base-${Date.now()}`,
+      savedAt: new Date().toLocaleTimeString(),
+      scenarioName: scenario.name || 'Benchmark Scenario',
+      targetUrl: scenario.targetUrl,
+      metrics: {
+        currentRps: metrics.currentRps,
+        p50: metrics.p50,
+        p90: metrics.p90,
+        p99: metrics.p99,
+        avgDurationMs: metrics.avgDurationMs,
+        errorRatePercent: metrics.errorRatePercent,
+        totalBytes: metrics.totalBytes,
+        completed: metrics.completed
+      },
+      apm: apmTelemetry ? {
+        workingSetMb: apmTelemetry.workingSetMb,
+        allocatedMemoryMb: apmTelemetry.allocatedMemoryMb,
+        threadCount: apmTelemetry.threadCount,
+        cpuUsagePercent: apmTelemetry.cpuUsagePercent
+      } : undefined
+    };
+    setBaseline(created);
+    try {
+      localStorage.setItem('benchmark_baseline', JSON.stringify(created));
+    } catch {}
+  };
+
+  const handleClearBaseline = () => {
+    setBaseline(null);
+    try {
+      localStorage.removeItem('benchmark_baseline');
+    } catch {}
+  };
+
+  const calcDiff = (curr: number, base?: number, lowerIsBetter = false) => {
+    if (base === undefined || base === 0) return null;
+    const diff = curr - base;
+    const pct = Math.round((diff / base) * 1000) / 10;
+    const isGood = lowerIsBetter ? diff < 0 : diff > 0;
+    const isNeutral = diff === 0;
+    return { diff: Math.round(diff * 10) / 10, pct, isGood, isNeutral };
+  };
+
+  const diffRps = calcDiff(metrics.currentRps, baseline?.metrics.currentRps, false);
+  const diffP50 = calcDiff(metrics.p50, baseline?.metrics.p50, true);
+  const diffP99 = calcDiff(metrics.p99, baseline?.metrics.p99, true);
+  const diffErr = calcDiff(metrics.errorRatePercent, baseline?.metrics.errorRatePercent, true);
+  const diffHeap = calcDiff(
+    apmTelemetry?.allocatedMemoryMb ?? 0,
+    baseline?.apm?.allocatedMemoryMb,
+    true
+  );
 
   const handleAddStage = () => {
     const nextStages: RampStage[] = [
@@ -452,8 +517,127 @@ export const OrchestratorTab = ({
               <span>Trigger</span>
             </button>
           )}
+
+          {metrics.completed > 0 && (
+            <button
+              type="button"
+              onClick={handleSaveBaseline}
+              style={{
+                ...ui.secondaryBtn,
+                color: '#38bdf8',
+                borderColor: '#0284c7'
+              }}
+              title="Save current run metrics as reference baseline"
+            >
+              ★ Save Baseline
+            </button>
+          )}
         </div>
       </div>
+
+      {baseline && (
+        <div
+          style={{
+            backgroundColor: '#0c1017',
+            border: '1px solid #1e293b',
+            borderRadius: '8px',
+            padding: '14px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8' }}>
+                ★ Baseline Diff & Performance Regression Watch
+              </span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                Reference saved at {baseline.savedAt} ({baseline.metrics.completed} calls)
+              </span>
+            </div>
+            <button
+              onClick={handleClearBaseline}
+              style={{
+                fontSize: '11px',
+                color: '#94a3b8',
+                background: 'transparent',
+                border: '1px solid #334155',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                cursor: 'pointer'
+              }}
+            >
+              Clear Baseline
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+            <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>Throughput (RPS)</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
+                {metrics.currentRps} <span style={{ fontSize: '11px', color: '#64748b' }}>vs {baseline.metrics.currentRps}</span>
+              </div>
+              {diffRps && (
+                <div style={{ fontSize: '11px', fontWeight: 600, color: diffRps.isGood ? '#34d399' : '#f87171', marginTop: '2px' }}>
+                  {diffRps.diff > 0 ? '▲ +' : '▼ '}{diffRps.diff} ({diffRps.pct > 0 ? '+' : ''}{diffRps.pct}%)
+                </div>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>P50 Median Latency</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
+                {metrics.p50} ms <span style={{ fontSize: '11px', color: '#64748b' }}>vs {baseline.metrics.p50} ms</span>
+              </div>
+              {diffP50 && (
+                <div style={{ fontSize: '11px', fontWeight: 600, color: diffP50.isGood ? '#34d399' : '#f87171', marginTop: '2px' }}>
+                  {diffP50.diff > 0 ? '▲ +' : '▼ '}{diffP50.diff} ms ({diffP50.pct > 0 ? '+' : ''}{diffP50.pct}%)
+                </div>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>P99 Tail Latency</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
+                {metrics.p99} ms <span style={{ fontSize: '11px', color: '#64748b' }}>vs {baseline.metrics.p99} ms</span>
+              </div>
+              {diffP99 && (
+                <div style={{ fontSize: '11px', fontWeight: 600, color: diffP99.isGood ? '#34d399' : '#f87171', marginTop: '2px' }}>
+                  {diffP99.diff > 0 ? '▲ +' : '▼ '}{diffP99.diff} ms ({diffP99.pct > 0 ? '+' : ''}{diffP99.pct}%)
+                </div>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>Error Rate</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
+                {metrics.errorRatePercent}% <span style={{ fontSize: '11px', color: '#64748b' }}>vs {baseline.metrics.errorRatePercent}%</span>
+              </div>
+              {diffErr && (
+                <div style={{ fontSize: '11px', fontWeight: 600, color: diffErr.isGood ? '#34d399' : '#f87171', marginTop: '2px' }}>
+                  {diffErr.diff > 0 ? '▲ +' : '▼ '}{diffErr.diff}%
+                </div>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: '#0f172a', padding: '10px', borderRadius: '6px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>GC Heap (Memory)</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
+                {apmTelemetry ? `${apmTelemetry.allocatedMemoryMb} MB` : '--'}{' '}
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  vs {baseline.apm?.allocatedMemoryMb ? `${baseline.apm.allocatedMemoryMb} MB` : '--'}
+                </span>
+              </div>
+              {diffHeap && (
+                <div style={{ fontSize: '11px', fontWeight: 600, color: diffHeap.isGood ? '#34d399' : '#f87171', marginTop: '2px' }}>
+                  {diffHeap.diff > 0 ? '▲ +' : '▼ '}{diffHeap.diff} MB ({diffHeap.pct > 0 ? '+' : ''}{diffHeap.pct}%)
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={ui.kpiGrid}>
         <div style={ui.kpiCard}>
@@ -461,6 +645,18 @@ export const OrchestratorTab = ({
           <div style={ui.kpiValueRow}>
             <span style={{ ...ui.kpiNumber, color: '#06b6d4' }}>{metrics.currentRps}</span>
             <span style={ui.kpiUnit}>req/s</span>
+            {diffRps && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  marginLeft: 'auto',
+                  color: diffRps.isGood ? '#10b981' : '#f43f5e'
+                }}
+              >
+                {diffRps.pct > 0 ? '+' : ''}{diffRps.pct}%
+              </span>
+            )}
           </div>
           <span style={ui.kpiFooter}>
             {engineSettings.profile === 'ramp_up'
@@ -476,6 +672,18 @@ export const OrchestratorTab = ({
           <div style={ui.kpiValueRow}>
             <span style={{ ...ui.kpiNumber, color: '#10b981' }}>{metrics.p50}</span>
             <span style={ui.kpiUnit}>ms</span>
+            {diffP50 && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  marginLeft: 'auto',
+                  color: diffP50.isGood ? '#10b981' : '#f43f5e'
+                }}
+              >
+                {diffP50.pct > 0 ? '+' : ''}{diffP50.pct}%
+              </span>
+            )}
           </div>
           <span style={ui.kpiFooter}>Min: {metrics.minDurationMs}ms | Avg: {metrics.avgDurationMs}ms</span>
         </div>
@@ -487,6 +695,18 @@ export const OrchestratorTab = ({
               {metrics.p99}
             </span>
             <span style={ui.kpiUnit}>ms</span>
+            {diffP99 && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  marginLeft: 'auto',
+                  color: diffP99.isGood ? '#10b981' : '#f43f5e'
+                }}
+              >
+                {diffP99.pct > 0 ? '+' : ''}{diffP99.pct}%
+              </span>
+            )}
           </div>
           <span style={ui.kpiFooter}>P90: {metrics.p90}ms | P99.9: {metrics.p999}ms</span>
         </div>
@@ -498,6 +718,18 @@ export const OrchestratorTab = ({
               {metrics.errorRatePercent}%
             </span>
             <span style={ui.kpiUnit}>({metrics.status429} throttled)</span>
+            {diffErr && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  marginLeft: 'auto',
+                  color: diffErr.isGood ? '#10b981' : '#f43f5e'
+                }}
+              >
+                {diffErr.diff > 0 ? '+' : ''}{diffErr.diff}%
+              </span>
+            )}
           </div>
           <span style={ui.kpiFooter}>2xx: {metrics.status2xx} | 4xx: {metrics.status4xx} | 5xx: {metrics.status5xx}</span>
         </div>
