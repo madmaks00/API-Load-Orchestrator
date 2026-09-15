@@ -13,7 +13,13 @@ export interface KeyValuePair {
   value: string;
   enabled: boolean;
 }
-
+export interface SpikeProfileSettings {
+  baseVUs: number;
+  spikeVUs: number;
+  preSpikeSeconds: number;
+  spikeDurationSeconds: number;
+  postSpikeSeconds: number;
+}
 export interface AssertionRule {
   id: string;
   field: 'status' | 'duration' | 'body';
@@ -68,7 +74,8 @@ export interface LoadEngineSettings {
   durationSeconds: number;
   rateLimitRps: number;
   assertions: AssertionRule[];
-  stages: RampStage[]; // <-- Добавили этапы для Ramp-Up
+  stages: RampStage[];
+  spikeSettings?: SpikeProfileSettings;
 }
 
 export interface RequestTrace {
@@ -89,7 +96,7 @@ export interface TelemetryBucket {
   rps: number;
   avgLatency: number;
   errorCount: number;
-  activeVUs: number; // <-- Активные воркеры в текущую секунду
+  activeVUs: number;
 }
 
 export interface AggregatedMetrics {
@@ -106,7 +113,7 @@ export interface AggregatedMetrics {
   throughputKbps: number;
   avgBytes: number;
   currentRps: number;
-  activeVUs: number; // <-- Актуальное число VUs
+  activeVUs: number;
   elapsedSeconds: number;
   avgDurationMs: number;
   stdDev: number;

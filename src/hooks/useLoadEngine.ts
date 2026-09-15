@@ -10,6 +10,7 @@ import type {
 } from '../types/benchmark';
 
 // Функция расчета желаемого количества VU на конкретной секунде теста
+// Функция расчета желаемого количества VU на конкретной секунде теста
 function calculateDesiredVUs(
   elapsedSeconds: number,
   settings: LoadEngineSettings
@@ -39,7 +40,36 @@ function calculateDesiredVUs(
       prevTarget = stage.targetVUs;
     }
 
-    // Если все этапы пройдены — тест завершен
+    return { desiredVUs: 0, isCompleted: true };
+  }
+
+  if (settings.profile === 'spike') {
+    const spike = settings.spikeSettings || {
+      baseVUs: 5,
+      spikeVUs: 50,
+      preSpikeSeconds: 10,
+      spikeDurationSeconds: 10,
+      postSpikeSeconds: 15
+    };
+
+    const phase1End = spike.preSpikeSeconds;
+    const phase2End = phase1End + spike.spikeDurationSeconds;
+    const totalSpikeTime = phase2End + spike.postSpikeSeconds;
+
+    // Фаза 1: Базовая нагрузка
+    if (elapsedSeconds <= phase1End) {
+      return { desiredVUs: spike.baseVUs, isCompleted: false };
+    }
+    // Фаза 2: Резкий всплеск нагрузки
+    if (elapsedSeconds <= phase2End) {
+      return { desiredVUs: spike.spikeVUs, isCompleted: false };
+    }
+    // Фаза 3: Возврат к базе для проверки восстановления
+    if (elapsedSeconds <= totalSpikeTime) {
+      return { desiredVUs: spike.baseVUs, isCompleted: false };
+    }
+
+    // Тест завершен
     return { desiredVUs: 0, isCompleted: true };
   }
 
@@ -84,12 +114,21 @@ export function useLoadEngine(
     const maxVUs =
       engineSettings.profile === 'ramp_up'
         ? Math.max(...(engineSettings.stages || []).map(s => s.targetVUs), 1)
+        : engineSettings.profile === 'spike'
+        ? Math.max(engineSettings.spikeSettings?.spikeVUs || 50, 1)
         : engineSettings.concurrency;
 
     const totalRampTime =
       engineSettings.profile === 'ramp_up'
         ? (engineSettings.stages || []).reduce((acc, s) => acc + s.durationSeconds, 0)
         : 0;
+
+    const totalSpikeTime =
+      engineSettings.profile === 'spike' && engineSettings.spikeSettings
+        ? engineSettings.spikeSettings.preSpikeSeconds +
+          engineSettings.spikeSettings.spikeDurationSeconds +
+          engineSettings.spikeSettings.postSpikeSeconds
+        : 35;
 
     addLog(
       'info',
@@ -98,9 +137,12 @@ export function useLoadEngine(
 
     let sentCounter = 0;
     const maxRequests = engineSettings.totalRequests > 0 ? engineSettings.totalRequests : Infinity;
+    
     const maxDurationMs =
       engineSettings.profile === 'ramp_up' && totalRampTime > 0
         ? totalRampTime * 1000
+        : engineSettings.profile === 'spike'
+        ? totalSpikeTime * 1000
         : engineSettings.durationSeconds > 0
         ? engineSettings.durationSeconds * 1000
         : Infinity;

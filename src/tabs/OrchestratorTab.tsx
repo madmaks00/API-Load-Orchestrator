@@ -1,4 +1,3 @@
-// src/tabs/OrchestratorTab.tsx
 import { useMemo, type Dispatch, type SetStateAction } from 'react';
 import { Icons } from '../components/Icons';
 import { ui } from '../styles';
@@ -10,12 +9,10 @@ import type {
   TelemetryBucket,
   AggregatedMetrics,
   ServerProcessTelemetry,
-  RampStage
+  RampStage,
+  SpikeProfileSettings
 } from '../types/benchmark';
 
-// ============================================================================
-// Графики нагрузки и латентности (SVG)
-// ============================================================================
 interface TelemetryGraphsProps {
   traces: RequestTrace[];
   buckets: TelemetryBucket[];
@@ -130,9 +127,6 @@ const TelemetryGraphs = ({ traces, buckets }: TelemetryGraphsProps) => {
   );
 };
 
-// ============================================================================
-// График телеметрии C# Kestrel (APM)
-// ============================================================================
 interface ServerApmWidgetProps {
   current: ServerProcessTelemetry | null;
   history: ServerProcessTelemetry[];
@@ -250,9 +244,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
   );
 };
 
-// ============================================================================
-// Основной экран OrchestratorTab
-// ============================================================================
 interface OrchestratorTabProps {
   scenario: ScenarioConfiguration;
   setScenario: Dispatch<SetStateAction<ScenarioConfiguration>>;
@@ -288,6 +279,15 @@ export const OrchestratorTab = ({
   const totalRampTime = stages.reduce((sum, s) => sum + s.durationSeconds, 0);
   const maxRampVUs = Math.max(...stages.map(s => s.targetVUs), 0);
 
+  const spike: SpikeProfileSettings = engineSettings.spikeSettings || {
+    baseVUs: 5,
+    spikeVUs: 50,
+    preSpikeSeconds: 10,
+    spikeDurationSeconds: 10,
+    postSpikeSeconds: 15
+  };
+  const totalSpikeTime = spike.preSpikeSeconds + spike.spikeDurationSeconds + spike.postSpikeSeconds;
+
   const handleAddStage = () => {
     const nextStages: RampStage[] = [
       ...stages,
@@ -312,9 +312,24 @@ export const OrchestratorTab = ({
     setEngineSettings(prev => ({ ...prev, stages: nextStages }));
   };
 
+  const handleUpdateSpike = (field: keyof SpikeProfileSettings, value: number) => {
+    setEngineSettings(prev => ({
+      ...prev,
+      spikeSettings: {
+        ...(prev.spikeSettings || {
+          baseVUs: 5,
+          spikeVUs: 50,
+          preSpikeSeconds: 10,
+          spikeDurationSeconds: 10,
+          postSpikeSeconds: 15
+        }),
+        [field]: value
+      }
+    }));
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* СТРОКА ВВОДА URL И УПРАВЛЕНИЯ ЗАПУСКОМ */}
       <div style={ui.card}>
         <div style={ui.urlComposerRow}>
           <select
@@ -349,7 +364,6 @@ export const OrchestratorTab = ({
         </div>
       </div>
 
-      {/* KPI ТОП-4 КАРТОЧКИ */}
       <div style={ui.kpiGrid}>
         <div style={ui.kpiCard}>
           <span style={ui.kpiLabel}>Current Throughput</span>
@@ -360,6 +374,8 @@ export const OrchestratorTab = ({
           <span style={ui.kpiFooter}>
             {engineSettings.profile === 'ramp_up'
               ? `Active: ${metrics.activeVUs ?? 0} VUs (Peak: ${maxRampVUs} VUs)`
+              : engineSettings.profile === 'spike'
+              ? `Active: ${metrics.activeVUs ?? 0} VUs (Surge Peak: ${spike.spikeVUs} VUs)`
               : `Across ${engineSettings.concurrency} concurrent VUs`}
           </span>
         </div>
@@ -441,7 +457,6 @@ export const OrchestratorTab = ({
         </div>
       </div>
 
-      {/* ПАРАМЕТРЫ ДВИЖКА НАГРУЗКИ */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px' }}>
         <div style={ui.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -449,6 +464,11 @@ export const OrchestratorTab = ({
             {engineSettings.profile === 'ramp_up' && (
               <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: 600 }}>
                 Total: {totalRampTime}s | Peak: {maxRampVUs} VUs
+              </span>
+            )}
+            {engineSettings.profile === 'spike' && (
+              <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>
+                Total: {totalSpikeTime}s | Peak: {spike.spikeVUs} VUs
               </span>
             )}
           </div>
@@ -463,11 +483,11 @@ export const OrchestratorTab = ({
               >
                 <option value="constant">Constant Virtual Users</option>
                 <option value="ramp_up">Linear Ramp-Up (Stages)</option>
-                <option value="spike">Spike Surge</option>
+                <option value="spike">Spike Surge (Stress Peak)</option>
               </select>
             </div>
 
-            {engineSettings.profile !== 'ramp_up' ? (
+            {engineSettings.profile === 'constant' && (
               <div>
                 <label style={ui.inputLabel}>Concurrent Workers (VUs): {engineSettings.concurrency}</label>
                 <input
@@ -479,7 +499,9 @@ export const OrchestratorTab = ({
                   style={{ width: '100%', accentColor: '#06b6d4', marginTop: '6px' }}
                 />
               </div>
-            ) : (
+            )}
+
+            {engineSettings.profile === 'ramp_up' && (
               <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                 <button onClick={handleAddStage} style={{ ...ui.secondaryBtn, width: '100%', justifyContent: 'center' }}>
                   <Icons.Plus />
@@ -487,9 +509,17 @@ export const OrchestratorTab = ({
                 </button>
               </div>
             )}
+
+            {engineSettings.profile === 'spike' && (
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: '10px', color: '#a1a1aa' }}>Surge Stress Profile</span>
+                <div style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 600, marginTop: '4px' }}>
+                  Base ({spike.baseVUs}) → ⚡ Peak ({spike.spikeVUs}) → Cooldown
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Редактор стадий разгона для Ramp-Up */}
           {engineSettings.profile === 'ramp_up' && (
             <div style={{
               display: 'flex',
@@ -555,6 +585,87 @@ export const OrchestratorTab = ({
             </div>
           )}
 
+          {engineSettings.profile === 'spike' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              marginTop: '14px',
+              padding: '12px',
+              backgroundColor: '#09090b',
+              borderRadius: '6px',
+              border: '1px solid #1f1f23'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '10px', color: '#f59e0b', textTransform: 'uppercase', fontWeight: 700 }}>
+                  ⚡ Spike Surge Profile Parameters
+                </span>
+                <span style={{ fontSize: '10px', color: '#71717a', fontFamily: 'monospace' }}>
+                  {spike.preSpikeSeconds}s @ {spike.baseVUs} VU → ⚡ {spike.spikeDurationSeconds}s @ {spike.spikeVUs} VU → {spike.postSpikeSeconds}s @ {spike.baseVUs} VU
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
+                <div>
+                  <label style={ui.inputLabel}>Base VUs</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={spike.baseVUs}
+                    onChange={e => handleUpdateSpike('baseVUs', Math.max(Number(e.target.value), 1))}
+                    style={{ ...ui.formInput, textAlign: 'center' }}
+                  />
+                </div>
+                <div>
+                  <label style={ui.inputLabel}>⚡ Surge Peak</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={spike.spikeVUs}
+                    onChange={e => handleUpdateSpike('spikeVUs', Math.max(Number(e.target.value), 1))}
+                    style={{
+                      ...ui.formInput,
+                      textAlign: 'center',
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                      fontWeight: 700
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={ui.inputLabel}>Pre-Spike (s)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={spike.preSpikeSeconds}
+                    onChange={e => handleUpdateSpike('preSpikeSeconds', Math.max(Number(e.target.value), 1))}
+                    style={{ ...ui.formInput, textAlign: 'center' }}
+                  />
+                </div>
+                <div>
+                  <label style={ui.inputLabel}>Surge (s)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={spike.spikeDurationSeconds}
+                    onChange={e => handleUpdateSpike('spikeDurationSeconds', Math.max(Number(e.target.value), 1))}
+                    style={{ ...ui.formInput, textAlign: 'center' }}
+                  />
+                </div>
+                <div>
+                  <label style={ui.inputLabel}>Recovery (s)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={spike.postSpikeSeconds}
+                    onChange={e => handleUpdateSpike('postSpikeSeconds', Math.max(Number(e.target.value), 1))}
+                    style={{ ...ui.formInput, textAlign: 'center' }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '14px' }}>
             <div>
               <label style={ui.inputLabel}>Total Reqs Limit</label>
@@ -570,13 +681,19 @@ export const OrchestratorTab = ({
               <label style={ui.inputLabel}>Duration (Sec, 0=None)</label>
               <input
                 type="number"
-                disabled={engineSettings.profile === 'ramp_up'}
-                value={engineSettings.profile === 'ramp_up' ? totalRampTime : engineSettings.durationSeconds}
+                disabled={engineSettings.profile !== 'constant'}
+                value={
+                  engineSettings.profile === 'ramp_up'
+                    ? totalRampTime
+                    : engineSettings.profile === 'spike'
+                    ? totalSpikeTime
+                    : engineSettings.durationSeconds
+                }
                 onChange={e => setEngineSettings(prev => ({ ...prev, durationSeconds: Number(e.target.value) }))}
                 style={{
                   ...ui.formInput,
-                  opacity: engineSettings.profile === 'ramp_up' ? 0.6 : 1,
-                  cursor: engineSettings.profile === 'ramp_up' ? 'not-allowed' : 'text'
+                  opacity: engineSettings.profile !== 'constant' ? 0.6 : 1,
+                  cursor: engineSettings.profile !== 'constant' ? 'not-allowed' : 'text'
                 }}
               />
             </div>

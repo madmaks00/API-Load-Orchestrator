@@ -32,7 +32,14 @@ export default function App() {
       { id: 's1', durationSeconds: 15, targetVUs: 20 },
       { id: 's2', durationSeconds: 30, targetVUs: 20 },
       { id: 's3', durationSeconds: 10, targetVUs: 0 }
-    ]
+    ],
+    spikeSettings: {
+      baseVUs: 5,
+      spikeVUs: 50,
+      preSpikeSeconds: 10,
+      spikeDurationSeconds: 10,
+      postSpikeSeconds: 15
+    }
   });
 
   const addLog = useCallback((level: ExecutionLog['level'], message: string) => {
