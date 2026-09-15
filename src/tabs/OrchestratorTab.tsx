@@ -181,13 +181,38 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginTop: '12px' }}>
+        <div style={ui.miniMetricBox}>
+          <div style={ui.miniMetricLabel}>Process CPU</div>
+          <div style={{
+            ...ui.miniMetricVal,
+            color: current?.cpuUsagePercent === undefined
+              ? '#71717a'
+              : current.cpuUsagePercent > 80
+              ? '#ef4444'
+              : current.cpuUsagePercent > 50
+              ? '#f59e0b'
+              : '#10b981'
+          }}>
+            {current?.cpuUsagePercent !== undefined ? `${current.cpuUsagePercent}%` : '--'}
+          </div>
+          <div style={ui.miniMetricSub}>
+            {current?.cpuUsagePercent === undefined
+              ? 'Нагрузка на ядра'
+              : current.cpuUsagePercent > 80
+              ? '⚠️ Троттлинг / Пик ЦП'
+              : current.cpuUsagePercent > 50
+              ? 'Высокая нагрузка'
+              : 'Нормальная загрузка'}
+          </div>
+        </div>
+
         <div style={ui.miniMetricBox}>
           <div style={ui.miniMetricLabel}>Working Set (OS RAM)</div>
           <div style={{ ...ui.miniMetricVal, color: '#a855f7' }}>
             {current ? `${current.workingSetMb}` : '--'} <span style={ui.miniUnit}>MB</span>
           </div>
-          <div style={ui.miniMetricSub}>Физическая память процесса</div>
+          <div style={ui.miniMetricSub}>Память процесса (ОС)</div>
         </div>
 
         <div style={ui.miniMetricBox}>
@@ -206,7 +231,6 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <div style={ui.miniMetricSub}>Активные потоки Kestrel</div>
         </div>
 
-        {/* НОВАЯ КАРТОЧКА: Очередь задач ThreadPool */}
         <div style={{
           ...ui.miniMetricBox,
           borderColor: isStarving ? '#ef4444' : '#1f1f23'
@@ -459,13 +483,10 @@ export const OrchestratorTab = ({
         </div>
       </div>
 
-      {/* ГРАФИКИ НАГРУЗКИ */}
       <TelemetryGraphs traces={traces} buckets={telemetryBuckets} />
 
-      {/* ВИДЖЕТ KESTREL PROCESS TELEMETRY (APM) */}
       <ServerApmWidget current={apmTelemetry} history={apmHistory} isConnected={isApmConnected} />
 
-      {/* ДЕТАЛЬНАЯ МАТРИЦА ПЕРЦЕНТИЛЕЙ И ПОЛОСЫ ПРОПУСКАНИЯ */}
       <div style={ui.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={ui.cardTitle}>Detailed Latency SLA Distribution & Bandwidth Matrix</div>

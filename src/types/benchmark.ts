@@ -43,6 +43,7 @@ export interface ServerNode {
 }
 
 export interface ServerProcessTelemetry {
+  cpuUsagePercent?: number;
   allocatedMemoryMb: number;
   workingSetMb: number;
   threadCount: number;
