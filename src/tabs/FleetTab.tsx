@@ -1,4 +1,3 @@
-// src/tabs/FleetTab.tsx
 import React, { useState } from 'react';
 import { Icons } from '../components/Icons';
 import { ui } from '../styles';
@@ -63,9 +62,6 @@ export const FleetTab: React.FC<FleetTabProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#f4f4f5' }}>Target Server Fleet & Endpoints</h2>
-          <p style={{ fontSize: '12px', color: '#71717a', marginTop: '2px' }}>
-            Continuous synthetic health probes and dynamic routing registry
-          </p>
         </div>
 
         <div style={{ display: 'flex', gap: '8px' }}>
