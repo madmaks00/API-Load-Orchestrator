@@ -444,6 +444,158 @@ export const OrchestratorTab = ({
     true
   );
 
+  const exportJson = () => {
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      scenario,
+      engineSettings,
+      metrics,
+      apm: apmTelemetry,
+      tracesCount: traces.length,
+      traces
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `benchmark-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportCsv = () => {
+    if (traces.length === 0) return;
+    const headers = ['id', 'timestamp', 'method', 'url', 'statusCode', 'durationMs', 'bytes', 'slaPassed', 'isError'];
+    const rows = traces.map(t => [
+      t.id,
+      new Date(t.timestamp).toISOString(),
+      t.method,
+      `"${t.url.replace(/"/g, '""')}"`,
+      t.statusCode,
+      t.durationMs,
+      t.responseBytes,
+      t.assertionPassed ? 'PASS' : 'FAIL',
+      t.isError ? 'TRUE' : 'FALSE'
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traces-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportHtmlReport = () => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Executive Benchmark Report - ${new Date().toLocaleDateString()}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #09090b; color: #f4f4f5; margin: 0; padding: 30px; }
+    h1 { font-size: 22px; margin: 0 0 4px 0; color: #fff; }
+    .meta { font-size: 12px; color: #71717a; margin-bottom: 24px; font-family: monospace; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .card { background: #111215; border: 1px solid #27272a; border-radius: 8px; padding: 14px; }
+    .label { font-size: 11px; text-transform: uppercase; color: #71717a; font-weight: 600; }
+    .val { font-size: 22px; font-weight: 700; margin-top: 6px; font-family: monospace; }
+    .sub { font-size: 10px; color: #52525b; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+    th, td { padding: 10px 14px; border: 1px solid #27272a; text-align: left; }
+    th { background: #18181b; color: #a1a1aa; text-transform: uppercase; font-size: 10px; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; font-family: monospace; }
+    .pass { background: #064e3b; color: #34d399; }
+    .fail { background: #7f1d1d; color: #f87171; }
+    .section-title { font-size: 14px; font-weight: 700; color: #e4e4e7; margin-top: 24px; margin-bottom: 8px; }
+    @media print { body { background: #fff; color: #000; } .card, th, td { border-color: #ccc; background: #fff; color: #000; } h1, .label, .val, .section-title { color: #000; } }
+  </style>
+</head>
+<body>
+  <h1>API Load Orchestrator — Executive Performance Report</h1>
+  <div class="meta">Target: ${scenario.method} ${scenario.targetUrl} | Generated: ${new Date().toLocaleString()}</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">Total Requests</div>
+      <div class="val" style="color:#06b6d4">${metrics.completed}</div>
+      <div class="sub">Duration: ${metrics.elapsedSeconds}s</div>
+    </div>
+    <div class="card">
+      <div class="label">Throughput (RPS)</div>
+      <div class="val" style="color:#06b6d4">${metrics.currentRps} <span style="font-size:12px">req/s</span></div>
+      <div class="sub">Bandwidth: ${metrics.throughputKbps} KB/s</div>
+    </div>
+    <div class="card">
+      <div class="label">Median (P50) / P99</div>
+      <div class="val" style="color:#10b981">${metrics.p50} / ${metrics.p99} <span style="font-size:12px">ms</span></div>
+      <div class="sub">Min: ${metrics.minDurationMs}ms | Max: ${metrics.maxDurationMs}ms</div>
+    </div>
+    <div class="card">
+      <div class="label">Error Rate</div>
+      <div class="val" style="color:${metrics.errorRatePercent > 0 ? '#f43f5e' : '#10b981'}">${metrics.errorRatePercent}%</div>
+      <div class="sub">2xx: ${metrics.status2xx} | 4xx: ${metrics.status4xx} | 5xx: ${metrics.status5xx}</div>
+    </div>
+  </div>
+
+  <div class="section-title">Latency SLA Distribution Matrix</div>
+  <div class="grid" style="grid-template-columns: repeat(8, 1fr)">
+    <div class="card"><div class="label">Min</div><div class="val" style="font-size:15px">${metrics.minDurationMs}ms</div></div>
+    <div class="card"><div class="label">P50</div><div class="val" style="font-size:15px; color:#10b981">${metrics.p50}ms</div></div>
+    <div class="card"><div class="label">P75</div><div class="val" style="font-size:15px">${metrics.p75}ms</div></div>
+    <div class="card"><div class="label">P90</div><div class="val" style="font-size:15px">${metrics.p90}ms</div></div>
+    <div class="card"><div class="label">P95</div><div class="val" style="font-size:15px">${metrics.p95}ms</div></div>
+    <div class="card"><div class="label">P99</div><div class="val" style="font-size:15px; color:#f59e0b">${metrics.p99}ms</div></div>
+    <div class="card"><div class="label">P99.9</div><div class="val" style="font-size:15px; color:#f43f5e">${metrics.p999}ms</div></div>
+    <div class="card"><div class="label">StdDev</div><div class="val" style="font-size:15px">±${metrics.stdDev}ms</div></div>
+  </div>
+
+  ${apmTelemetry ? `
+  <div class="section-title">C# Kestrel Process Telemetry (APM Diagnostics)</div>
+  <div class="grid" style="grid-template-columns: repeat(5, 1fr)">
+    <div class="card"><div class="label">CPU Usage</div><div class="val" style="font-size:16px; color:#38bdf8">${apmTelemetry.cpuUsagePercent ?? 0}%</div></div>
+    <div class="card"><div class="label">OS Working Set</div><div class="val" style="font-size:16px; color:#a855f7">${apmTelemetry.workingSetMb} MB</div></div>
+    <div class="card"><div class="label">GC Managed Heap</div><div class="val" style="font-size:16px; color:#06b6d4">${apmTelemetry.allocatedMemoryMb} MB</div></div>
+    <div class="card"><div class="label">LOH / POH Heap</div><div class="val" style="font-size:16px">${apmTelemetry.lohSizeMb ?? 0} MB / ${apmTelemetry.pohSizeMb ?? 0} MB</div></div>
+    <div class="card"><div class="label">ThreadPool Threads</div><div class="val" style="font-size:16px">${apmTelemetry.threadCount} (Queue: ${apmTelemetry.pendingWorkItemCount ?? 0})</div></div>
+  </div>
+  ` : ''}
+
+  <div class="section-title">SLA Assertions & Quality Gates</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Rule ID</th>
+        <th>Evaluation Field</th>
+        <th>Condition</th>
+        <th>Target Threshold</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${engineSettings.assertions.map(rule => `
+        <tr>
+          <td><code>${rule.id}</code></td>
+          <td>${rule.field.toUpperCase()}</td>
+          <td>${rule.operator}</td>
+          <td><code>${rule.targetValue}</code></td>
+          <td><span class="badge ${rule.enabled ? 'pass' : 'fail'}">${rule.enabled ? 'EVALUATED' : 'DISABLED'}</span></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <div style="margin-top: 30px; text-align: right">
+    <button onclick="window.print()" style="padding: 8px 18px; font-weight: 600; cursor: pointer">Print to PDF</button>
+  </div>
+</body>
+</html>`;
+    win.document.write(html);
+    win.document.close();
+  };
+
   const handleAddStage = () => {
     const nextStages: RampStage[] = [
       ...stages,
@@ -519,18 +671,48 @@ export const OrchestratorTab = ({
           )}
 
           {metrics.completed > 0 && (
-            <button
-              type="button"
-              onClick={handleSaveBaseline}
-              style={{
-                ...ui.secondaryBtn,
-                color: '#38bdf8',
-                borderColor: '#0284c7'
-              }}
-              title="Save current run metrics as reference baseline"
-            >
-              ★ Save Baseline
-            </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={handleSaveBaseline}
+                style={{
+                  ...ui.secondaryBtn,
+                  color: '#38bdf8',
+                  borderColor: '#0284c7'
+                }}
+                title="Save current run metrics as reference baseline"
+              >
+                ★ Baseline
+              </button>
+              <button
+                type="button"
+                onClick={exportHtmlReport}
+                style={{
+                  ...ui.secondaryBtn,
+                  color: '#10b981',
+                  borderColor: '#059669'
+                }}
+                title="Generate printable executive HTML/PDF report"
+              >
+                📄 Report
+              </button>
+              <button
+                type="button"
+                onClick={exportCsv}
+                style={ui.secondaryBtn}
+                title="Export traces as CSV"
+              >
+                📊 CSV
+              </button>
+              <button
+                type="button"
+                onClick={exportJson}
+                style={ui.secondaryBtn}
+                title="Export full benchmark telemetry as JSON"
+              >
+                📦 JSON
+              </button>
+            </div>
           )}
         </div>
       </div>
