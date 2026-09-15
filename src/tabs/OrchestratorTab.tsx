@@ -143,6 +143,9 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
     return Math.max(max * 1.2, 50);
   }, [history]);
 
+  const queueCount = current?.pendingWorkItemCount;
+  const isStarving = queueCount !== undefined && queueCount > 20;
+
   return (
     <div style={ui.card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -150,20 +153,35 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
           <span style={{ color: isConnected ? '#10b981' : '#71717a' }}><Icons.Cpu /></span>
           <span style={ui.cardTitle}>C# Kestrel Process Telemetry & Diagnostics (APM)</span>
         </div>
-        <span style={{
-          fontSize: '10px',
-          fontWeight: 600,
-          padding: '2px 8px',
-          borderRadius: '4px',
-          backgroundColor: isConnected ? '#064e3b' : '#18181b',
-          color: isConnected ? '#34d399' : '#71717a',
-          border: '1px solid #27272a'
-        }}>
-          {isConnected ? 'LIVE AGENT LINKED (/api/system-metrics)' : 'NO APM PROBE DETECTED'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isStarving && (
+            <span style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '4px',
+              backgroundColor: '#7f1d1d',
+              color: '#fca5a5',
+              border: '1px solid #ef4444'
+            }}>
+              ⚠️ THREADPOOL STARVATION (QUEUE: {queueCount})
+            </span>
+          )}
+          <span style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: '4px',
+            backgroundColor: isConnected ? '#064e3b' : '#18181b',
+            color: isConnected ? '#34d399' : '#71717a',
+            border: '1px solid #27272a'
+          }}>
+            {isConnected ? 'LIVE AGENT LINKED (/api/system-metrics)' : 'NO APM PROBE DETECTED'}
+          </span>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginTop: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '12px' }}>
         <div style={ui.miniMetricBox}>
           <div style={ui.miniMetricLabel}>Working Set (OS RAM)</div>
           <div style={{ ...ui.miniMetricVal, color: '#a855f7' }}>
@@ -182,10 +200,39 @@ const ServerApmWidget = ({ current, history, isConnected }: ServerApmWidgetProps
 
         <div style={ui.miniMetricBox}>
           <div style={ui.miniMetricLabel}>ThreadPool Threads</div>
-          <div style={{ ...ui.miniMetricVal, color: '#f59e0b' }}>
+          <div style={{ ...ui.miniMetricVal, color: '#38bdf8' }}>
             {current ? current.threadCount : '--'}
           </div>
           <div style={ui.miniMetricSub}>Активные потоки Kestrel</div>
+        </div>
+
+        {/* НОВАЯ КАРТОЧКА: Очередь задач ThreadPool */}
+        <div style={{
+          ...ui.miniMetricBox,
+          borderColor: isStarving ? '#ef4444' : '#1f1f23'
+        }}>
+          <div style={ui.miniMetricLabel}>ThreadPool Queue</div>
+          <div style={{
+            ...ui.miniMetricVal,
+            color: queueCount === undefined
+              ? '#71717a'
+              : queueCount > 20
+              ? '#ef4444'
+              : queueCount > 0
+              ? '#f59e0b'
+              : '#10b981'
+          }}>
+            {queueCount !== undefined ? queueCount : '--'}
+          </div>
+          <div style={ui.miniMetricSub}>
+            {queueCount === undefined
+              ? 'Очередь задач'
+              : queueCount > 20
+              ? '⚠️ Голодание пула!'
+              : queueCount > 0
+              ? 'Задачи в ожидании'
+              : 'Очередь свободна'}
+          </div>
         </div>
 
         <div style={ui.miniMetricBox}>

@@ -46,6 +46,7 @@ export interface ServerProcessTelemetry {
   allocatedMemoryMb: number;
   workingSetMb: number;
   threadCount: number;
+  pendingWorkItemCount?: number;
   cpuTimeMs: number;
   gen0: number;
   gen1: number;
