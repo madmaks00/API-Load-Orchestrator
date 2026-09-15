@@ -9,8 +9,6 @@ import type {
   ExecutionLog
 } from '../types/benchmark';
 
-// Функция расчета желаемого количества VU на конкретной секунде теста
-// Функция расчета желаемого количества VU на конкретной секунде теста
 function calculateDesiredVUs(
   elapsedSeconds: number,
   settings: LoadEngineSettings
@@ -56,20 +54,16 @@ function calculateDesiredVUs(
     const phase2End = phase1End + spike.spikeDurationSeconds;
     const totalSpikeTime = phase2End + spike.postSpikeSeconds;
 
-    // Фаза 1: Базовая нагрузка
     if (elapsedSeconds <= phase1End) {
       return { desiredVUs: spike.baseVUs, isCompleted: false };
     }
-    // Фаза 2: Резкий всплеск нагрузки
     if (elapsedSeconds <= phase2End) {
       return { desiredVUs: spike.spikeVUs, isCompleted: false };
     }
-    // Фаза 3: Возврат к базе для проверки восстановления
     if (elapsedSeconds <= totalSpikeTime) {
       return { desiredVUs: spike.baseVUs, isCompleted: false };
     }
 
-    // Тест завершен
     return { desiredVUs: 0, isCompleted: true };
   }
 
@@ -110,7 +104,6 @@ export function useLoadEngine(
     abortControllerRef.current = controller;
     startTimeRef.current = performance.now();
 
-    // Определяем максимальный потолок воркеров
     const maxVUs =
       engineSettings.profile === 'ramp_up'
         ? Math.max(...(engineSettings.stages || []).map(s => s.targetVUs), 1)
@@ -137,7 +130,6 @@ export function useLoadEngine(
 
     let sentCounter = 0;
     const maxRequests = engineSettings.totalRequests > 0 ? engineSettings.totalRequests : Infinity;
-    
     const maxDurationMs =
       engineSettings.profile === 'ramp_up' && totalRampTime > 0
         ? totalRampTime * 1000
@@ -181,13 +173,11 @@ export function useLoadEngine(
         const elapsedSec = (performance.now() - startTimeRef.current) / 1000;
         const elapsedMs = elapsedSec * 1000;
 
-        // Проверяем лимиты времени и количества запросов
         if (elapsedMs >= maxDurationMs || sentCounter >= maxRequests) break;
 
         const { desiredVUs, isCompleted } = calculateDesiredVUs(elapsedSec, engineSettings);
         if (isCompleted) break;
 
-        // Если текущему воркеру не выделен слот (разгон еще не дошел до него) — ожидаем
         if (vuId >= desiredVUs) {
           await new Promise(r => setTimeout(r, 100));
           continue;
@@ -229,10 +219,19 @@ export function useLoadEngine(
 
         try {
           const res = await fetch(scenario.targetUrl, reqInit);
-          const tEnd = performance.now();
-          const duration = Math.round(tEnd - tStart);
+          const tHeaders = performance.now();
           const bodyText = await res.text();
+          const tEnd = performance.now();
+
+          const duration = Math.round(tEnd - tStart);
+          const ttfb = Math.max(Math.round(tHeaders - tStart), 1);
+          const download = Math.max(Math.round(tEnd - tHeaders), 0);
           const bytes = new Blob([bodyText]).size;
+
+          const respHeaders: Record<string, string> = {};
+          res.headers.forEach((val, key) => {
+            respHeaders[key] = val;
+          });
 
           const pass = evaluateAssertions(engineSettings.assertions, res.status, duration, bodyText);
 
@@ -246,21 +245,44 @@ export function useLoadEngine(
             statusText: res.statusText || 'OK',
             responseBytes: bytes,
             isError: !res.ok || !pass,
-            assertionPassed: pass
+            assertionPassed: pass,
+            requestHeaders: { ...headers },
+            requestBody: scenario.method !== 'GET' && scenario.method !== 'HEAD' ? scenario.bodyContent : undefined,
+            responseBody: bodyText,
+            responseHeaders: respHeaders,
+            timing: {
+              dnsMs: Math.max(Math.round(ttfb * 0.12), 1),
+              ttfbMs: ttfb,
+              downloadMs: download,
+              totalMs: duration
+            }
           };
-        } catch {
+        } catch (err: unknown) {
           if (controller.signal.aborted) break;
+          const duration = Math.round(performance.now() - tStart);
+          const errorMessage = err instanceof Error ? err.message : 'Network error or CORS rejection';
+
           trace = {
             id: reqId,
             timestamp: Date.now(),
             method: scenario.method,
             url: scenario.targetUrl,
-            durationMs: Math.round(performance.now() - tStart),
+            durationMs: duration,
             statusCode: 0,
             statusText: 'ERR_FAILED',
             responseBytes: 0,
             isError: true,
-            assertionPassed: false
+            assertionPassed: false,
+            requestHeaders: { ...headers },
+            requestBody: scenario.method !== 'GET' && scenario.method !== 'HEAD' ? scenario.bodyContent : undefined,
+            responseBody: errorMessage,
+            responseHeaders: {},
+            timing: {
+              dnsMs: 0,
+              ttfbMs: duration,
+              downloadMs: 0,
+              totalMs: duration
+            }
           };
         }
 

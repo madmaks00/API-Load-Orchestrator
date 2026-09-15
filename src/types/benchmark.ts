@@ -7,12 +7,6 @@ export interface RampStage {
   targetVUs: number;
 }
 
-export interface KeyValuePair {
-  id: string;
-  key: string;
-  value: string;
-  enabled: boolean;
-}
 export interface SpikeProfileSettings {
   baseVUs: number;
   spikeVUs: number;
@@ -20,6 +14,14 @@ export interface SpikeProfileSettings {
   spikeDurationSeconds: number;
   postSpikeSeconds: number;
 }
+
+export interface KeyValuePair {
+  id: string;
+  key: string;
+  value: string;
+  enabled: boolean;
+}
+
 export interface AssertionRule {
   id: string;
   field: 'status' | 'duration' | 'body';
@@ -45,6 +47,8 @@ export interface ServerNode {
 export interface ServerProcessTelemetry {
   cpuUsagePercent?: number;
   allocatedMemoryMb: number;
+  lohSizeMb?: number;
+  pohSizeMb?: number;
   workingSetMb: number;
   threadCount: number;
   pendingWorkItemCount?: number;
@@ -80,6 +84,13 @@ export interface LoadEngineSettings {
   spikeSettings?: SpikeProfileSettings;
 }
 
+export interface RequestTraceTiming {
+  dnsMs: number;
+  ttfbMs: number;
+  downloadMs: number;
+  totalMs: number;
+}
+
 export interface RequestTrace {
   id: number;
   timestamp: number;
@@ -91,6 +102,11 @@ export interface RequestTrace {
   responseBytes: number;
   isError: boolean;
   assertionPassed: boolean;
+  requestHeaders?: Record<string, string>;
+  requestBody?: string;
+  responseBody?: string;
+  responseHeaders?: Record<string, string>;
+  timing?: RequestTraceTiming;
 }
 
 export interface TelemetryBucket {
