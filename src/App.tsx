@@ -1,5 +1,4 @@
-// src/App.tsx
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { ui } from './styles';
 import { Sidebar, type TabType } from './components/Sidebar';
 import { DEFAULT_PRESETS } from './constants';
