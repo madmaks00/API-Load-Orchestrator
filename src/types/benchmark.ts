@@ -1,0 +1,122 @@
+// src/types/benchmark.ts
+
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+export type LoadProfileType = 'constant' | 'ramp_up' | 'spike';
+
+export interface KeyValuePair {
+  id: string;
+  key: string;
+  value: string;
+  enabled: boolean;
+}
+
+export interface AssertionRule {
+  id: string;
+  field: 'status' | 'duration' | 'body';
+  operator: 'equals' | 'lt' | 'lte' | 'gt' | 'gte' | 'contains';
+  targetValue: string;
+  enabled: boolean;
+}
+
+export interface ServerNode {
+  id: string;
+  name: string;
+  baseUrl: string;
+  healthPath: string;
+  environment: 'development' | 'staging' | 'production';
+  status: 'healthy' | 'degraded' | 'offline' | 'probing';
+  latencyMs: number | null;
+  uptimePercent: number;
+  lastChecked: string;
+  history: number[];
+  tags: string[];
+}
+
+export interface ServerProcessTelemetry {
+  allocatedMemoryMb: number;
+  workingSetMb: number;
+  threadCount: number;
+  cpuTimeMs: number;
+  gen0: number;
+  gen1: number;
+  gen2: number;
+  timestamp: string;
+}
+
+export interface ScenarioConfiguration {
+  id: string;
+  name: string;
+  description: string;
+  targetUrl: string;
+  method: HttpMethod;
+  headers: KeyValuePair[];
+  queryParams: KeyValuePair[];
+  authType: 'none' | 'bearer' | 'basic' | 'apiKey';
+  authToken?: string;
+  bodyContent: string;
+  timeoutMs: number;
+}
+
+export interface LoadEngineSettings {
+  profile: LoadProfileType;
+  concurrency: number;
+  totalRequests: number;
+  durationSeconds: number;
+  rateLimitRps: number;
+  assertions: AssertionRule[];
+}
+
+export interface RequestTrace {
+  id: number;
+  timestamp: number;
+  method: HttpMethod;
+  url: string;
+  durationMs: number;
+  statusCode: number;
+  statusText: string;
+  responseBytes: number;
+  isError: boolean;
+  assertionPassed: boolean;
+}
+
+export interface TelemetryBucket {
+  timestamp: number;
+  rps: number;
+  avgLatency: number;
+  errorCount: number;
+}
+
+export interface AggregatedMetrics {
+  totalSent: number;
+  completed: number;
+  successCount: number;
+  status2xx: number;
+  status3xx: number;
+  status4xx: number;
+  status429: number;
+  status5xx: number;
+  networkErrors: number;
+  totalBytes: number;
+  throughputKbps: number;
+  avgBytes: number;
+  currentRps: number;
+  elapsedSeconds: number;
+  avgDurationMs: number;
+  stdDev: number;
+  minDurationMs: number;
+  maxDurationMs: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  p999: number;
+  errorRatePercent: number;
+}
+
+export interface ExecutionLog {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'success';
+  message: string;
+}
