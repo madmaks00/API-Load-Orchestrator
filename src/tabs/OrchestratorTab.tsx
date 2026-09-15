@@ -478,9 +478,22 @@ export const OrchestratorTab = ({
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>Executive Benchmark Report - ${new Date().toLocaleDateString()}</title>
+  <!-- 1. Пустой title, чтобы браузер не печатал название в колонтитуле -->
+  <title></title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #09090b; color: #f4f4f5; margin: 0; padding: 30px; }
+    /* 2. Обнуление полей страницы полностью скрывает about:blank и дату/заголовок */
+    @page {
+      margin: 0;
+      size: auto;
+    }
+
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      background: #09090b; 
+      color: #f4f4f5; 
+      margin: 0; 
+      padding: 30px; 
+    }
     h1 { font-size: 22px; margin: 0 0 4px 0; color: #fff; }
     .meta { font-size: 12px; color: #71717a; margin-bottom: 24px; font-family: monospace; }
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
@@ -495,7 +508,24 @@ export const OrchestratorTab = ({
     .pass { background: #064e3b; color: #34d399; }
     .fail { background: #7f1d1d; color: #f87171; }
     .section-title { font-size: 14px; font-weight: 700; color: #e4e4e7; margin-top: 24px; margin-bottom: 8px; }
-    @media print { body { background: #fff; color: #000; } .card, th, td { border-color: #ccc; background: #fff; color: #000; } h1, .label, .val, .section-title { color: #000; } }
+
+    @media print { 
+      /* Возвращаем аккуратные отступы для контента на листе */
+      body { 
+        background: #fff; 
+        color: #000; 
+        padding: 15mm; 
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      } 
+      .card, th, td { border-color: #ccc; background: #fff; color: #000; } 
+      h1, .label, .val, .section-title { color: #000; } 
+
+      /* 3. Скрываем кнопку "Print to PDF" при печати/сохранении в файл */
+      .no-print { 
+        display: none !important; 
+      } 
+    }
   </style>
 </head>
 <body>
@@ -572,8 +602,11 @@ export const OrchestratorTab = ({
     </tbody>
   </table>
 
-  <div style="margin-top: 30px; text-align: right">
-    <button onclick="window.print()" style="padding: 8px 18px; font-weight: 600; cursor: pointer">Print to PDF</button>
+  <!-- Обернули в .no-print: на странице кнопка есть, в готовом PDF ее не будет -->
+  <div class="no-print" style="margin-top: 30px; text-align: right">
+    <button onclick="window.print()" style="padding: 8px 18px; font-weight: 600; cursor: pointer; border-radius: 4px; border: 1px solid #3f3f46; background: #27272a; color: #fff;">
+      Print to PDF
+    </button>
   </div>
 </body>
 </html>`;
@@ -1158,8 +1191,14 @@ export const OrchestratorTab = ({
               <label style={ui.inputLabel}>Total Reqs Limit</label>
               <input
                 type="number"
-                value={engineSettings.totalRequests}
-                onChange={e => setEngineSettings(prev => ({ ...prev, totalRequests: Number(e.target.value) }))}
+                min="0"
+                placeholder="0"
+                value={engineSettings.totalRequests === 0 ? '' : engineSettings.totalRequests}
+                onFocus={e => e.target.select()}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0;
+                  setEngineSettings(prev => ({ ...prev, totalRequests: val }));
+                }}
                 style={ui.formInput}
               />
             </div>
@@ -1168,15 +1207,21 @@ export const OrchestratorTab = ({
               <label style={ui.inputLabel}>Duration (Sec, 0=None)</label>
               <input
                 type="number"
+                min="0"
+                placeholder="0"
                 disabled={engineSettings.profile !== 'constant'}
                 value={
                   engineSettings.profile === 'ramp_up'
-                    ? totalRampTime
+                    ? (totalRampTime === 0 ? '' : totalRampTime)
                     : engineSettings.profile === 'spike'
-                    ? totalSpikeTime
-                    : engineSettings.durationSeconds
+                    ? (totalSpikeTime === 0 ? '' : totalSpikeTime)
+                    : (engineSettings.durationSeconds === 0 ? '' : engineSettings.durationSeconds)
                 }
-                onChange={e => setEngineSettings(prev => ({ ...prev, durationSeconds: Number(e.target.value) }))}
+                onFocus={e => e.target.select()}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0;
+                  setEngineSettings(prev => ({ ...prev, durationSeconds: val }));
+                }}
                 style={{
                   ...ui.formInput,
                   opacity: engineSettings.profile !== 'constant' ? 0.6 : 1,
@@ -1189,8 +1234,14 @@ export const OrchestratorTab = ({
               <label style={ui.inputLabel}>RPS Throttle (0=Inf)</label>
               <input
                 type="number"
-                value={engineSettings.rateLimitRps}
-                onChange={e => setEngineSettings(prev => ({ ...prev, rateLimitRps: Number(e.target.value) }))}
+                min="0"
+                placeholder="0"
+                value={engineSettings.rateLimitRps === 0 ? '' : engineSettings.rateLimitRps}
+                onFocus={e => e.target.select()}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0;
+                  setEngineSettings(prev => ({ ...prev, rateLimitRps: val }));
+                }}
                 style={ui.formInput}
               />
             </div>

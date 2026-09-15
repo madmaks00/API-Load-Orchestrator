@@ -2,8 +2,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-
-  /* 1. Стандарт для Firefox и современных браузеров */
   scrollbar-width: thin;
   scrollbar-color: #27272a transparent;
 }
@@ -13,44 +11,48 @@ body, html, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #09090b; /* чтобы не мигало белым при загрузке */
+  background-color: #09090b;
 }
 
-/* 2. Стилизация скроллбара для Chrome, Edge, Safari, Opera (WebKit) */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;              /* Ширина вертикального скролла */
-  height: 8px;             /* Высота горизонтального скролла */
+  width: 8px;
+  height: 8px;
 }
 
-/* Дорожка скролла (прозрачная, сливается с фоном #09090b) */
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Сам ползунок */
 ::-webkit-scrollbar-thumb {
-  background-color: #27272a; /* Ровно в цвет твоих бордеров из styles.ts */
+  background-color: #27272a;
   border-radius: 4px;
-  border: 2px solid #09090b; /* Внутренний отступ за счет границы в цвет фона */
+  border: 2px solid #09090b;
   transition: background-color 0.2s ease;
 }
 
-/* При наведении курсора */
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3f3f46; /* Чуть светлее */
+  background-color: #3f3f46;
 }
 
-/* При зажатии и перетаскивании ползунка */
 ::-webkit-scrollbar-thumb:active {
-  background-color: #06b6d4; /* Неоновый циан в тон твоим метрикам */
+  background-color: #06b6d4;
 }
 
-/* Убираем уродливые стрелочки по краям Windows */
 ::-webkit-scrollbar-button {
   display: none;
 }
 
-/* Угол пересечения вертикального и горизонтального скролла */
 ::-webkit-scrollbar-corner {
   background: transparent;
 }

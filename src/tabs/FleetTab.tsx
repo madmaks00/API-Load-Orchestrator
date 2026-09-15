@@ -82,7 +82,6 @@ export const FleetTab: React.FC<FleetTabProps> = ({
           <div style={ui.kpiValueRow}>
             <span style={{ ...ui.kpiNumber, color: '#f4f4f5' }}>{servers.length}</span>
           </div>
-          <span style={ui.kpiFooter}>Across all environments</span>
         </div>
         <div style={ui.kpiCard}>
           <span style={ui.kpiLabel}>Healthy Nodes</span>
@@ -91,7 +90,6 @@ export const FleetTab: React.FC<FleetTabProps> = ({
               {servers.filter(s => s.status === 'healthy').length}
             </span>
           </div>
-          <span style={ui.kpiFooter}>Passing HTTP 200 OK</span>
         </div>
         <div style={ui.kpiCard}>
           <span style={ui.kpiLabel}>Fleet Avg Latency</span>
@@ -99,14 +97,12 @@ export const FleetTab: React.FC<FleetTabProps> = ({
             <span style={{ ...ui.kpiNumber, color: '#06b6d4' }}>{fleetAvgLatency}</span>
             <span style={ui.kpiUnit}>ms</span>
           </div>
-          <span style={ui.kpiFooter}>Live heartbeat roundtrip</span>
         </div>
         <div style={ui.kpiCard}>
           <span style={ui.kpiLabel}>Fleet Availability</span>
           <div style={ui.kpiValueRow}>
             <span style={{ ...ui.kpiNumber, color: '#10b981' }}>99.9%</span>
           </div>
-          <span style={ui.kpiFooter}>Global synthetic uptime SLA</span>
         </div>
       </div>
 
